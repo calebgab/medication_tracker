@@ -8,7 +8,6 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
-from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_MED_DAYS,

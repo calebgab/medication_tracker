@@ -17,7 +17,6 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 import homeassistant.util.dt as dt_util
 
 from .const import (
-    ATTR_DAYS,
     ATTR_DOSE,
     ATTR_LAST_TAKEN,
     ATTR_NEXT_DOSE,
