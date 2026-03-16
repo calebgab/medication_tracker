@@ -1,4 +1,5 @@
 """DataUpdateCoordinator for Medication Tracker."""
+
 from __future__ import annotations
 
 import logging
@@ -256,9 +257,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 grace_dt = scheduled_dt + timedelta(minutes=OVERDUE_GRACE_MINUTES)
                 if now > grace_dt:
                     # Check if this slot was handled
-                    handled = any(
-                        e.get("scheduled_time") == t_str for e in today_entries
-                    )
+                    handled = any(e.get("scheduled_time") == t_str for e in today_entries)
                     if not handled:
                         is_overdue = True
                         overdue_since = scheduled_dt.isoformat()
@@ -304,9 +303,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Count consecutive days with at least one taken dose, ending today."""
         # Build a set of dates that have taken entries
         all_entries = self._dose_log.get(med_id, [])
-        taken_dates: set[str] = {
-            e["date"] for e in all_entries if e.get("action") == "taken"
-        }
+        taken_dates: set[str] = {e["date"] for e in all_entries if e.get("action") == "taken"}
         streak = 0
         check_date = today
         while check_date.isoformat() in taken_dates:

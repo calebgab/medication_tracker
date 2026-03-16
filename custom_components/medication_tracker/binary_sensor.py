@@ -1,4 +1,5 @@
 """Binary sensor platform for Medication Tracker."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -126,7 +127,9 @@ class MedicationOverdueSensor(MedicationBaseBinarySensor):
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
-    def __init__(self, coordinator: MedicationCoordinator, entry_id: str, med_id: str) -> None:
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
         super().__init__(coordinator, entry_id, med_id, SUFFIX_OVERDUE)
 
     @property
@@ -160,7 +163,9 @@ class MedicationOverdueSensor(MedicationBaseBinarySensor):
 class MedicationDueSoonSensor(MedicationBaseBinarySensor):
     """Binary sensor: True when the next dose is within 60 minutes."""
 
-    def __init__(self, coordinator: MedicationCoordinator, entry_id: str, med_id: str) -> None:
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
         super().__init__(coordinator, entry_id, med_id, SUFFIX_DUE)
 
     @property

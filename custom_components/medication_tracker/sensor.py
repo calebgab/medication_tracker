@@ -1,4 +1,5 @@
 """Sensor platform for Medication Tracker."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -142,7 +143,9 @@ class MedicationNextDoseSensor(MedicationBaseSensor):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_translation_key = "next_dose"
 
-    def __init__(self, coordinator: MedicationCoordinator, entry_id: str, med_id: str) -> None:
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
         super().__init__(coordinator, entry_id, med_id, SUFFIX_NEXT_DOSE)
 
     @property
@@ -178,7 +181,9 @@ class MedicationLastTakenSensor(MedicationBaseSensor):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_translation_key = "last_taken"
 
-    def __init__(self, coordinator: MedicationCoordinator, entry_id: str, med_id: str) -> None:
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
         super().__init__(coordinator, entry_id, med_id, SUFFIX_LAST_TAKEN)
 
     @property
@@ -214,7 +219,9 @@ class MedicationStreakSensor(MedicationBaseSensor):
     _attr_native_unit_of_measurement = "days"
     _attr_translation_key = "streak"
 
-    def __init__(self, coordinator: MedicationCoordinator, entry_id: str, med_id: str) -> None:
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
         super().__init__(coordinator, entry_id, med_id, SUFFIX_STREAK)
 
     @property
@@ -248,7 +255,9 @@ class MedicationTakenTodaySensor(MedicationBaseSensor):
     _attr_icon = "mdi:pill-multiple"
     _attr_translation_key = "taken_today"
 
-    def __init__(self, coordinator: MedicationCoordinator, entry_id: str, med_id: str) -> None:
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
         super().__init__(coordinator, entry_id, med_id, SUFFIX_TAKEN_TODAY)
 
     @property

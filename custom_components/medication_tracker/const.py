@@ -8,7 +8,7 @@ CONF_MEDICATIONS = "medications"
 CONF_MED_NAME = "name"
 CONF_MED_DOSE = "dose"
 CONF_MED_TIMES = "times"  # list of "HH:MM" strings
-CONF_MED_DAYS = "days"    # list of weekday ints 0-6, empty = every day
+CONF_MED_DAYS = "days"  # list of weekday ints 0-6, empty = every day
 CONF_MED_NOTES = "notes"
 
 # Storage
