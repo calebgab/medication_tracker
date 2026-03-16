@@ -150,4 +150,3 @@ def _register_services(hass: HomeAssistant, entry: MedicationTrackerConfigEntry)
     hass.services.async_register(
         DOMAIN, SERVICE_RESET_TODAY, handle_reset_today, schema=_SERVICE_BASE_SCHEMA
     )
- 
