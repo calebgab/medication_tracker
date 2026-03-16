@@ -2,7 +2,9 @@
   "domain": "medication_tracker",
   "name": "Medication Tracker",
   "after_dependencies": [],
-  "codeowners": ["@calebgab"],
+  "codeowners": [
+    "@calebgab"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/calebgab/medication_tracker",
