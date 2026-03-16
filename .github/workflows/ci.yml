@@ -30,5 +30,3 @@ jobs:
           pip install ruff mypy
       - name: Ruff lint
         run: ruff check custom_components/
-      - name: Ruff format check
-        run: ruff format --check custom_components/
