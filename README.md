@@ -1,5 +1,7 @@
 # Medication Tracker for Home Assistant
 
+Still totally in BETA. Would NOT recommend deploying or trying this integration out!
+
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/calebgab/medication_tracker.svg)](https://github.com/calebgab/medication_tracker/releases)
 [![CI](https://github.com/calebgab/medication_tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/calebgab/medication_tracker/actions/workflows/ci.yml)
