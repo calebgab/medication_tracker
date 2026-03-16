@@ -1,0 +1,57 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Medication Tracker",
+        "description": "Create a medication tracker instance. You can add medications after setup via the Configure button.",
+        "data": {
+          "title": "Tracker name"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This tracker name is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage Medications",
+        "description": "You have {count} medication(s) configured.",
+        "data": {
+          "action": "Action"
+        }
+      },
+      "add_medication": {
+        "title": "Add Medication",
+        "data": {
+          "name": "Medication name",
+          "dose": "Dose (e.g. 10mg)",
+          "times": "Scheduled times (HH:MM, comma-separated)",
+          "days": "Days (mon, tue, wed… or leave blank for every day)",
+          "notes": "Notes"
+        }
+      },
+      "edit_medication": {
+        "title": "Edit Medication",
+        "data": {
+          "name": "Medication name",
+          "dose": "Dose",
+          "times": "Scheduled times",
+          "days": "Days",
+          "notes": "Notes"
+        }
+      },
+      "remove_medication": {
+        "title": "Remove Medication",
+        "data": {
+          "medication_id": "Select medication to remove"
+        }
+      }
+    },
+    "error": {
+      "invalid_time_format": "Invalid time format. Use HH:MM, comma-separated (e.g. 08:00, 20:00).",
+      "invalid_day_format": "Invalid day format. Use mon/tue/wed/thu/fri/sat/sun, comma-separated."
+    }
+  }
+}

@@ -1,0 +1,59 @@
+mark_taken:
+  name: Mark medication as taken
+  description: >
+    Record that a dose of a medication has been taken. Updates streak,
+    last_taken, and taken_today sensors immediately.
+  fields:
+    medication_id:
+      name: Medication ID
+      description: The unique ID of the medication (found in entity attributes).
+      required: true
+      selector:
+        text:
+    scheduled_time:
+      name: Scheduled time
+      description: >
+        The scheduled dose time this action corresponds to (HH:MM). Optional —
+        used to mark a specific slot as handled when multiple doses are configured.
+      required: false
+      selector:
+        text:
+    taken_at:
+      name: Taken at
+      description: >
+        ISO 8601 datetime when the dose was taken. Defaults to now if omitted.
+      required: false
+      selector:
+        datetime:
+
+mark_skipped:
+  name: Mark medication as skipped
+  description: >
+    Record that a scheduled dose was intentionally skipped. Prevents the
+    overdue sensor from triggering for that scheduled slot.
+  fields:
+    medication_id:
+      name: Medication ID
+      description: The unique ID of the medication.
+      required: true
+      selector:
+        text:
+    scheduled_time:
+      name: Scheduled time
+      description: The scheduled dose time (HH:MM) being skipped.
+      required: false
+      selector:
+        text:
+
+reset_today:
+  name: Reset today's log
+  description: >
+    Clear all taken and skipped entries for today for a given medication.
+    Useful for correcting mistakes.
+  fields:
+    medication_id:
+      name: Medication ID
+      description: The unique ID of the medication.
+      required: true
+      selector:
+        text:
