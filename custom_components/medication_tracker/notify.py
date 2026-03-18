@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.core import HomeAssistant
 
 from .const import (
-    CONF_NOTIFICATIONS,
     CONF_NOTIF_DUE_SOON_ENABLED,
     CONF_NOTIF_DUE_SOON_MESSAGE,
     CONF_NOTIF_DUE_SOON_TITLE,
@@ -130,7 +129,7 @@ class MedicationNotifier:
         if delay and delay > 0:
             # Check if enough time has passed since overdue_since
             if overdue_since:
-                from datetime import datetime, timezone
+                from datetime import datetime
                 try:
                     overdue_dt = datetime.fromisoformat(overdue_since)
                     from homeassistant.util.dt import now as ha_now
