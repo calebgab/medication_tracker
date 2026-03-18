@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 import homeassistant.util.dt as dt_util
 
 from .const import (
+    CONF_NOTIFICATIONS,
     DOMAIN,
     OVERDUE_GRACE_MINUTES,
     STORAGE_KEY,
@@ -21,7 +22,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# How often the coordinator refreshes internal state (no external API, just recalculates)
 UPDATE_INTERVAL = timedelta(minutes=1)
 
 
@@ -29,7 +29,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Manage medication state and persistence."""
 
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
-        """Initialise the coordinator."""
         super().__init__(
             hass,
             _LOGGER,
@@ -39,8 +38,10 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.entry_id = entry_id
         self._store: Store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY}_{entry_id}")
         self._medications: list[dict[str, Any]] = []
-        # Keyed by medication_id -> list of log entries for today
         self._dose_log: dict[str, list[dict[str, Any]]] = {}
+        self._notification_config: dict[str, Any] = {}
+        # Notifier is set by __init__.py after construction
+        self._notifier: Any = None
 
     # ------------------------------------------------------------------
     # Initialisation
@@ -53,21 +54,29 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._medications = stored.get("medications", [])
             raw_log = stored.get("dose_log", {})
             today_str = date.today().isoformat()
-            # Only keep today's log entries to avoid unbounded growth
             self._dose_log = {
                 med_id: [e for e in entries if e.get("date") == today_str]
                 for med_id, entries in raw_log.items()
             }
+            self._notification_config = stored.get(CONF_NOTIFICATIONS, {})
         else:
             self._medications = []
             self._dose_log = {}
+            self._notification_config = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Recalculate derived state for all medications."""
+        """Recalculate derived state for all medications, then check notifications."""
         now = dt_util.now()
         result: dict[str, Any] = {}
         for med in self._medications:
             result[med["id"]] = self._build_med_state(med, now)
+
+        if self._notifier is not None:
+            try:
+                await self._notifier.async_check_and_notify()
+            except Exception as err:
+                _LOGGER.error("Notification check failed: %s", err)
+
         return result
 
     # ------------------------------------------------------------------
@@ -76,15 +85,16 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @property
     def medications(self) -> list[dict[str, Any]]:
-        """Return the list of configured medications."""
         return list(self._medications)
 
+    @property
+    def notification_config(self) -> dict[str, Any]:
+        return dict(self._notification_config)
+
     def get_medication(self, med_id: str) -> dict[str, Any] | None:
-        """Return a single medication config by id."""
         return next((m for m in self._medications if m["id"] == med_id), None)
 
     def get_med_state(self, med_id: str) -> dict[str, Any]:
-        """Return current derived state for a medication."""
         if self.data and med_id in self.data:
             return self.data[med_id]
         med = self.get_medication(med_id)
@@ -97,7 +107,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------------------
 
     async def async_add_medication(self, config: dict[str, Any]) -> str:
-        """Add a new medication. Returns its generated id."""
         med_id = str(uuid.uuid4())
         entry = {
             "id": med_id,
@@ -113,7 +122,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return med_id
 
     async def async_update_medication(self, med_id: str, config: dict[str, Any]) -> bool:
-        """Update an existing medication. Returns True if found."""
         for i, med in enumerate(self._medications):
             if med["id"] == med_id:
                 self._medications[i] = {
@@ -123,6 +131,11 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "times": config.get("times", med["times"]),
                     "days": config.get("days", med["days"]),
                     "notes": config.get("notes", med["notes"]),
+                    # Preserve notification overrides
+                    "notification_overrides": config.get(
+                        "notification_overrides",
+                        med.get("notification_overrides", {}),
+                    ),
                 }
                 await self._async_save()
                 await self.async_refresh()
@@ -130,7 +143,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return False
 
     async def async_remove_medication(self, med_id: str) -> bool:
-        """Remove a medication. Returns True if found."""
         before = len(self._medications)
         self._medications = [m for m in self._medications if m["id"] != med_id]
         if len(self._medications) < before:
@@ -138,6 +150,26 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self._async_save()
             await self.async_refresh()
             return True
+        return False
+
+    # ------------------------------------------------------------------
+    # Notification config
+    # ------------------------------------------------------------------
+
+    async def async_update_notification_config(self, config: dict[str, Any]) -> None:
+        """Persist global notification settings."""
+        self._notification_config = config
+        await self._async_save()
+
+    async def async_update_med_notification_overrides(
+        self, med_id: str, overrides: dict[str, Any]
+    ) -> bool:
+        """Persist per-medication notification overrides."""
+        for i, med in enumerate(self._medications):
+            if med["id"] == med_id:
+                self._medications[i] = {**med, "notification_overrides": overrides}
+                await self._async_save()
+                return True
         return False
 
     # ------------------------------------------------------------------
@@ -150,7 +182,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         taken_at: datetime | None = None,
         scheduled_time: str | None = None,
     ) -> bool:
-        """Log that a dose was taken. Returns True if medication exists."""
         if not self.get_medication(med_id):
             return False
         now = taken_at or dt_util.now()
@@ -163,6 +194,13 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._dose_log.setdefault(med_id, []).append(entry)
         await self._async_save()
         await self.async_refresh()
+
+        if self._notifier is not None:
+            try:
+                await self._notifier.async_notify_taken(med_id)
+            except Exception as err:
+                _LOGGER.error("Taken notification failed: %s", err)
+
         return True
 
     async def async_mark_skipped(
@@ -170,7 +208,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         med_id: str,
         scheduled_time: str | None = None,
     ) -> bool:
-        """Log that a dose was intentionally skipped."""
         if not self.get_medication(med_id):
             return False
         entry = {
@@ -185,7 +222,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return True
 
     async def async_reset_today(self, med_id: str) -> bool:
-        """Clear all of today's log entries for a medication."""
         if not self.get_medication(med_id):
             return False
         today = date.today().isoformat()
@@ -201,23 +237,19 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------------------
 
     def _build_med_state(self, med: dict[str, Any], now: datetime) -> dict[str, Any]:
-        """Derive all sensor-relevant state for a medication."""
         today = now.date()
         today_str = today.isoformat()
         scheduled_times: list[str] = med.get("times", [])
         days: list[int] = med.get("days", [])
 
-        # Is today a scheduled day?
         scheduled_today = not days or (now.weekday() in days)
 
-        # Today's log entries
         today_entries = [
             e for e in self._dose_log.get(med["id"], []) if e.get("date") == today_str
         ]
         taken_entries = [e for e in today_entries if e.get("action") == "taken"]
         skipped_entries = [e for e in today_entries if e.get("action") == "skipped"]
 
-        # Determine next scheduled dose time
         next_dose_dt: datetime | None = None
         next_dose_time_str: str | None = None
         for t_str in sorted(scheduled_times):
@@ -230,7 +262,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 next_dose_dt = candidate
                 next_dose_time_str = t_str
                 break
-        # If no more times today, find the next scheduled day
+
         if next_dose_dt is None and scheduled_times:
             for days_ahead in range(1, 8):
                 future_date = today + timedelta(days=days_ahead)
@@ -244,7 +276,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         pass
                     break
 
-        # Overdue: any scheduled time today that is > grace period in the past with no taken/skipped entry
         is_overdue = False
         overdue_since: str | None = None
         if scheduled_today:
@@ -256,20 +287,17 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 scheduled_dt = datetime.combine(today, t, tzinfo=now.tzinfo)
                 grace_dt = scheduled_dt + timedelta(minutes=OVERDUE_GRACE_MINUTES)
                 if now > grace_dt:
-                    # Check if this slot was handled
                     handled = any(e.get("scheduled_time") == t_str for e in today_entries)
                     if not handled:
                         is_overdue = True
                         overdue_since = scheduled_dt.isoformat()
-                        break  # Report earliest unhandled overdue slot
+                        break
 
-        # Due soon: within DUE_SOON_MINUTES of next dose
         is_due_soon = False
         if next_dose_dt is not None:
             minutes_until = (next_dose_dt - now).total_seconds() / 60
             is_due_soon = 0 <= minutes_until <= 60
 
-        # Last taken timestamp
         last_taken: str | None = None
         if taken_entries:
             last_taken = max(
@@ -277,7 +305,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 default=None,
             )
 
-        # Streak: consecutive days with at least one "taken" entry
         streak = self._calculate_streak(med["id"], today)
 
         return {
@@ -300,8 +327,6 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
 
     def _calculate_streak(self, med_id: str, today: date) -> int:
-        """Count consecutive days with at least one taken dose, ending today."""
-        # Build a set of dates that have taken entries
         all_entries = self._dose_log.get(med_id, [])
         taken_dates: set[str] = {e["date"] for e in all_entries if e.get("action") == "taken"}
         streak = 0
@@ -316,10 +341,10 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------------------
 
     async def _async_save(self) -> None:
-        """Persist medications and dose log to storage."""
         await self._store.async_save(
             {
                 "medications": self._medications,
                 "dose_log": self._dose_log,
+                CONF_NOTIFICATIONS: self._notification_config,
             }
         )
