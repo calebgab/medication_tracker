@@ -48,3 +48,42 @@ OVERDUE_GRACE_MINUTES = 30
 DUE_SOON_MINUTES = 60
 
 DAYS_OF_WEEK = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+# ---------------------------------------------------------------------------
+# Notification config keys
+# ---------------------------------------------------------------------------
+
+# Top-level notification config stored in coordinator
+CONF_NOTIFICATIONS = "notifications"
+
+# Global defaults keys
+CONF_NOTIF_TARGET = "notify_target"
+CONF_NOTIF_OVERDUE_ENABLED = "overdue_enabled"
+CONF_NOTIF_OVERDUE_DELAY = "overdue_delay_minutes"
+CONF_NOTIF_OVERDUE_TITLE = "overdue_title"
+CONF_NOTIF_OVERDUE_MESSAGE = "overdue_message"
+CONF_NOTIF_DUE_SOON_ENABLED = "due_soon_enabled"
+CONF_NOTIF_DUE_SOON_TITLE = "due_soon_title"
+CONF_NOTIF_DUE_SOON_MESSAGE = "due_soon_message"
+CONF_NOTIF_TAKEN_ENABLED = "taken_enabled"
+CONF_NOTIF_TAKEN_TITLE = "taken_title"
+CONF_NOTIF_TAKEN_MESSAGE = "taken_message"
+
+# Per-medication override keys
+CONF_NOTIF_OVERRIDES = "notification_overrides"
+CONF_NOTIF_OVERRIDE_OVERDUE = "override_overdue"
+CONF_NOTIF_OVERRIDE_DUE_SOON = "override_due_soon"
+CONF_NOTIF_OVERRIDE_TAKEN = "override_taken"
+
+# Default notify target
+DEFAULT_NOTIFY_TARGET = "notify.persistent_notification"
+DEFAULT_OVERDUE_DELAY = 0
+
+# Default message templates
+# Available placeholders: {medication}, {dose}, {time}, {overdue_since}
+DEFAULT_OVERDUE_TITLE = "{medication} overdue"
+DEFAULT_OVERDUE_MESSAGE = "{medication} ({dose}) was due at {overdue_since} and hasn't been taken."
+DEFAULT_DUE_SOON_TITLE = "{medication} due soon"
+DEFAULT_DUE_SOON_MESSAGE = "{medication} ({dose}) is due at {time}."
+DEFAULT_TAKEN_TITLE = "{medication} taken"
+DEFAULT_TAKEN_MESSAGE = "{medication} ({dose}) has been marked as taken."
