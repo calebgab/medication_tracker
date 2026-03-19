@@ -41,8 +41,8 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-ACTION_MARK_TAKEN = "MT_MARK_TAKEN"
-ACTION_REMIND_5MIN = "MT_REMIND_5MIN"
+ACTION_MARK_TAKEN_PREFIX = "MT_TAKEN_"
+ACTION_REMIND_PREFIX = "MT_REMIND_"
 
 
 def _is_ios(hass: HomeAssistant, target: str) -> bool:
@@ -66,14 +66,14 @@ def _is_ios(hass: HomeAssistant, target: str) -> bool:
 
 def _build_action_data(hass: HomeAssistant, target: str, med_id: str) -> dict[str, Any]:
     """Build platform-appropriate action data for an actionable notification."""
+    # Encode med_id in the action identifier so it comes back in the event response
     actions = [
-        {"action": ACTION_MARK_TAKEN, "title": "Mark taken"},
-        {"action": ACTION_REMIND_5MIN, "title": "Remind in 5 min"},
+        {"action": f"{ACTION_MARK_TAKEN_PREFIX}{med_id}", "title": "Mark taken"},
+        {"action": f"{ACTION_REMIND_PREFIX}{med_id}", "title": "Remind in 5 min"},
     ]
     if _is_ios(hass, target):
         return {
             "actions": actions,
-            "tag": f"medication_{med_id}",
             "push": {"category": "MEDICATION_ALERT"},
         }
     return {
@@ -103,20 +103,30 @@ class MedicationNotifier:
         @callback
         def _handle_action(event: Any) -> None:
             action = event.data.get("action", "")
-            if action not in (ACTION_MARK_TAKEN, ACTION_REMIND_5MIN):
+            # Extract med_id from the action identifier prefix
+            med_id = None
+            is_taken = False
+            is_remind = False
+            if action.startswith(ACTION_MARK_TAKEN_PREFIX):
+                med_id = action[len(ACTION_MARK_TAKEN_PREFIX):]
+                is_taken = True
+            elif action.startswith(ACTION_REMIND_PREFIX):
+                med_id = action[len(ACTION_REMIND_PREFIX):]
+                is_remind = True
+            else:
                 return
-            tag = event.data.get("tag", "")
-            if not tag.startswith("medication_"):
+
+            if not med_id:
                 return
-            med_id = tag.replace("medication_", "", 1)
+
             _LOGGER.debug("Notification action %s received for med %s", action, med_id)
-            if action == ACTION_MARK_TAKEN:
+
+            if is_taken:
                 # Pass the overdue scheduled_time so the coordinator marks that slot as handled
                 state = self._coordinator.get_med_state(med_id)
                 scheduled_time = None
                 if state.get("is_overdue") and state.get("overdue_since"):
                     try:
-                        from datetime import datetime
                         overdue_dt = datetime.fromisoformat(state["overdue_since"])
                         scheduled_time = overdue_dt.strftime("%H:%M")
                     except (ValueError, KeyError):
@@ -124,7 +134,7 @@ class MedicationNotifier:
                 self._hass.async_create_task(
                     self._coordinator.async_mark_taken(med_id, scheduled_time=scheduled_time)
                 )
-            elif action == ACTION_REMIND_5MIN:
+            elif is_remind:
                 self._schedule_reminder(med_id)
 
         self._unsub_action = self._hass.bus.async_listen(
