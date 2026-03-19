@@ -111,8 +111,18 @@ class MedicationNotifier:
             med_id = tag.replace("medication_", "", 1)
             _LOGGER.debug("Notification action %s received for med %s", action, med_id)
             if action == ACTION_MARK_TAKEN:
+                # Pass the overdue scheduled_time so the coordinator marks that slot as handled
+                state = self._coordinator.get_med_state(med_id)
+                scheduled_time = None
+                if state.get("is_overdue") and state.get("overdue_since"):
+                    try:
+                        from datetime import datetime
+                        overdue_dt = datetime.fromisoformat(state["overdue_since"])
+                        scheduled_time = overdue_dt.strftime("%H:%M")
+                    except (ValueError, KeyError):
+                        pass
                 self._hass.async_create_task(
-                    self._coordinator.async_mark_taken(med_id)
+                    self._coordinator.async_mark_taken(med_id, scheduled_time=scheduled_time)
                 )
             elif action == ACTION_REMIND_5MIN:
                 self._schedule_reminder(med_id)
