@@ -22,6 +22,7 @@ from .const import (
     SERVICE_RESET_TODAY,
 )
 from .coordinator import MedicationCoordinator
+from .notify import MedicationNotifier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ _SERVICE_BASE_SCHEMA = vol.Schema(
 _MARK_TAKEN_SCHEMA = _SERVICE_BASE_SCHEMA.extend(
     {
         vol.Optional(ATTR_SCHEDULED_TIME): cv.string,
-        vol.Optional(ATTR_TAKEN_AT): cv.string,  # ISO datetime string
+        vol.Optional(ATTR_TAKEN_AT): cv.string,
     }
 )
 
@@ -49,7 +50,6 @@ _MARK_SKIPPED_SCHEMA = _SERVICE_BASE_SCHEMA.extend(
         vol.Optional(ATTR_SCHEDULED_TIME): cv.string,
     }
 )
-
 
 # ---------------------------------------------------------------------------
 # Setup / teardown
@@ -60,6 +60,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: MedicationTrackerConfigE
     """Set up Medication Tracker from a config entry."""
     coordinator = MedicationCoordinator(hass, entry.entry_id)
     await coordinator.async_load()
+
+    notifier = MedicationNotifier(hass, coordinator)
+    coordinator._notifier = notifier
+
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
@@ -75,7 +79,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: MedicationTrackerConfig
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    # Remove services only if this was the last entry
     remaining = [
         e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id
     ]
@@ -85,7 +88,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: MedicationTrackerConfig
                 hass.services.async_remove(DOMAIN, svc)
 
     return unload_ok
-
 
 # ---------------------------------------------------------------------------
 # Services
@@ -115,7 +117,6 @@ def _register_services(hass: HomeAssistant, entry: MedicationTrackerConfigEntry)
         taken_at = None
         if taken_at_raw:
             from homeassistant.util.dt import parse_datetime
-
             taken_at = parse_datetime(taken_at_raw)
         coordinator = _get_coordinator(hass, med_id)
         success = await coordinator.async_mark_taken(
