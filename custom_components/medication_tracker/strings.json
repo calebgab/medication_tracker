@@ -50,7 +50,7 @@
       },
       "notifications": {
         "title": "Notifications",
-        "description": "Configure when and how you are notified. Use '{medication}', '{dose}', '{time}', and '{overdue_since}' as placeholders in message templates.",
+        "description": "Configure when and how you are notified about medications.",
         "data": {
           "notify_target": "Notify service (e.g. notify.persistent_notification)",
           "overdue_enabled": "Alert when a dose is overdue",
@@ -62,7 +62,7 @@
       },
       "notification_overdue_message": {
         "title": "Overdue message template",
-        "description": "Available placeholders: '{'medication'}', '{'dose'}', '{'overdue_since'}'",
+        "description": "Customise the message sent when a dose is overdue.",
         "data": {
           "overdue_title": "Notification title",
           "overdue_message": "Notification message"
@@ -70,7 +70,7 @@
       },
       "notification_due_soon_message": {
         "title": "Due soon message template",
-        "description": "Available placeholders: '{'medication'}', '{'dose'}', '{'time'}'",
+        "description": "Customise the message sent when a dose is due soon.",
         "data": {
           "due_soon_title": "Notification title",
           "due_soon_message": "Notification message"
@@ -78,7 +78,7 @@
       },
       "notification_taken_message": {
         "title": "Taken confirmation message template",
-        "description": "Available placeholders: '{'medication'}', '{'dose'}'",
+        "description": "Customise the message sent when a dose is marked as taken.",
         "data": {
           "taken_title": "Notification title",
           "taken_message": "Notification message"
