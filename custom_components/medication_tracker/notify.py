@@ -41,25 +41,26 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Action identifiers sent to/from the mobile app
 ACTION_MARK_TAKEN = "MT_MARK_TAKEN"
 ACTION_REMIND_5MIN = "MT_REMIND_5MIN"
 
 
 def _is_ios(hass: HomeAssistant, target: str) -> bool:
     """Return True if the notify target belongs to an Apple device."""
-    # target is e.g. "notify.mobile_app_johns_iphone"
-    # The mobile_app device is registered with manufacturer "Apple" for iOS devices.
     if not target.startswith("notify.mobile_app_"):
         return False
-    device_name = target.replace("notify.mobile_app_", "")
-    registry = dr.async_get(hass)
-    for device in registry.devices.values():
-        if device.manufacturer and device.manufacturer.lower() == "apple":
-            # Match by checking if any identifier contains the device name
-            for _, identifier in device.identifiers:
-                if device_name in identifier.lower():
-                    return True
+    try:
+        device_name = target.replace("notify.mobile_app_", "").lower()
+        registry = dr.async_get(hass)
+        for device in registry.devices.values():
+            if device.manufacturer and device.manufacturer.lower() == "apple":
+                for _, identifier in device.identifiers:
+                    if device_name in identifier.lower():
+                        _LOGGER.debug("Detected iOS device for target %s", target)
+                        return True
+    except Exception as err:
+        _LOGGER.warning("Could not detect platform for %s: %s", target, err)
+    _LOGGER.debug("Assuming Android for target %s", target)
     return False
 
 
@@ -71,13 +72,10 @@ def _build_action_data(hass: HomeAssistant, target: str, med_id: str) -> dict[st
     ]
     if _is_ios(hass, target):
         return {
-            "push": {
-                "category": "MEDICATION_ALERT",
-            },
             "actions": actions,
             "tag": f"medication_{med_id}",
+            "push": {"category": "MEDICATION_ALERT"},
         }
-    # Android
     return {
         "actions": actions,
         "tag": f"medication_{med_id}",
@@ -91,10 +89,8 @@ class MedicationNotifier:
     def __init__(self, hass: HomeAssistant, coordinator: MedicationCoordinator) -> None:
         self._hass = hass
         self._coordinator = coordinator
-        # Tracks which notifications have already fired today to prevent repeats.
         self._fired: set[str] = set()
         self._fired_date: date = date.today()
-        # Unsubscribe handle for the mobile_app_notification_action listener
         self._unsub_action: Any = None
         self._register_action_listener()
 
@@ -109,13 +105,11 @@ class MedicationNotifier:
             action = event.data.get("action", "")
             if action not in (ACTION_MARK_TAKEN, ACTION_REMIND_5MIN):
                 return
-
-            # The tag we set was "medication_{med_id}"
             tag = event.data.get("tag", "")
             if not tag.startswith("medication_"):
                 return
             med_id = tag.replace("medication_", "", 1)
-
+            _LOGGER.debug("Notification action %s received for med %s", action, med_id)
             if action == ACTION_MARK_TAKEN:
                 self._hass.async_create_task(
                     self._coordinator.async_mark_taken(med_id)
@@ -154,6 +148,7 @@ class MedicationNotifier:
                 )
             )
 
+        _LOGGER.debug("Scheduling reminder for med %s in 5 minutes", med_id)
         async_call_later(self._hass, 300, _send_reminder)
 
     def unsubscribe(self) -> None:
@@ -175,7 +170,6 @@ class MedicationNotifier:
             med_id = med["id"]
             state = self._coordinator.get_med_state(med_id)
             overrides = med.get(CONF_NOTIF_OVERRIDES, {})
-
             await self._check_overdue(med, state, notif_config, overrides)
             await self._check_due_soon(med, state, notif_config, overrides)
 
@@ -231,25 +225,31 @@ class MedicationNotifier:
             notif_config.get(CONF_NOTIF_OVERDUE_ENABLED, False),
         )
         if not enabled:
+            _LOGGER.debug("Overdue notification disabled for %s", med["name"])
             return
 
         overdue_since = state.get("overdue_since", "")
         fire_key = f"{med['id']}_overdue_{overdue_since}"
         if fire_key in self._fired:
+            _LOGGER.debug("Overdue notification already fired for %s", med["name"])
             return
 
         delay = notif_config.get(CONF_NOTIF_OVERDUE_DELAY, DEFAULT_OVERDUE_DELAY)
-        if delay and delay > 0:
-            if overdue_since:
-                try:
-                    overdue_dt = datetime.fromisoformat(overdue_since)
-                    from homeassistant.util.dt import now as ha_now
-                    elapsed = (ha_now() - overdue_dt).total_seconds() / 60
-                    if elapsed < delay:
-                        return
-                except ValueError:
-                    pass
+        if delay and delay > 0 and overdue_since:
+            try:
+                overdue_dt = datetime.fromisoformat(overdue_since)
+                from homeassistant.util.dt import now as ha_now
+                elapsed = (ha_now() - overdue_dt).total_seconds() / 60
+                if elapsed < delay:
+                    _LOGGER.debug(
+                        "Overdue delay not met for %s (%.1f / %d min)",
+                        med["name"], elapsed, delay,
+                    )
+                    return
+            except ValueError:
+                pass
 
+        _LOGGER.debug("Firing overdue notification for %s", med["name"])
         title = notif_config.get(CONF_NOTIF_OVERDUE_TITLE, DEFAULT_OVERDUE_TITLE)
         message = notif_config.get(CONF_NOTIF_OVERDUE_MESSAGE, DEFAULT_OVERDUE_MESSAGE)
         await self._send(
@@ -282,13 +282,16 @@ class MedicationNotifier:
             notif_config.get(CONF_NOTIF_DUE_SOON_ENABLED, False),
         )
         if not enabled:
+            _LOGGER.debug("Due soon notification disabled for %s", med["name"])
             return
 
         next_dose_time = state.get("next_dose_time", "")
         fire_key = f"{med['id']}_due_soon_{next_dose_time}"
         if fire_key in self._fired:
+            _LOGGER.debug("Due soon notification already fired for %s", med["name"])
             return
 
+        _LOGGER.debug("Firing due soon notification for %s", med["name"])
         title = notif_config.get(CONF_NOTIF_DUE_SOON_TITLE, DEFAULT_DUE_SOON_TITLE)
         message = notif_config.get(CONF_NOTIF_DUE_SOON_MESSAGE, DEFAULT_DUE_SOON_MESSAGE)
         await self._send(
@@ -335,6 +338,9 @@ class MedicationNotifier:
         if actionable and med_id and target != DEFAULT_NOTIFY_TARGET:
             service_data["data"] = _build_action_data(self._hass, target, med_id)
 
+        _LOGGER.debug(
+            "Sending notification via %s: title=%r, actionable=%s", target, title, actionable
+        )
         try:
             await self._hass.services.async_call(
                 domain,

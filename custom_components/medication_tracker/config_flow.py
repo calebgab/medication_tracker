@@ -164,7 +164,7 @@ class MedicationOptionsFlow(OptionsFlow):
         action_labels: dict[str, str] = {
             "add": "Add new medication",
             "notifications": "Notifications",
-            "done": "Done",
+            "done": "Save and Finish",
         }
         for med in meds:
             action_labels[f"edit:{med['id']}"] = f"Edit: {med['name']}"
