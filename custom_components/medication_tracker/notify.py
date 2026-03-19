@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.event import async_call_later
 
 from .const import (
     CONF_NOTIF_DUE_SOON_ENABLED,
@@ -39,6 +41,49 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Action identifiers sent to/from the mobile app
+ACTION_MARK_TAKEN = "MT_MARK_TAKEN"
+ACTION_REMIND_5MIN = "MT_REMIND_5MIN"
+
+
+def _is_ios(hass: HomeAssistant, target: str) -> bool:
+    """Return True if the notify target belongs to an Apple device."""
+    # target is e.g. "notify.mobile_app_johns_iphone"
+    # The mobile_app device is registered with manufacturer "Apple" for iOS devices.
+    if not target.startswith("notify.mobile_app_"):
+        return False
+    device_name = target.replace("notify.mobile_app_", "")
+    registry = dr.async_get(hass)
+    for device in registry.devices.values():
+        if device.manufacturer and device.manufacturer.lower() == "apple":
+            # Match by checking if any identifier contains the device name
+            for _, identifier in device.identifiers:
+                if device_name in identifier.lower():
+                    return True
+    return False
+
+
+def _build_action_data(hass: HomeAssistant, target: str, med_id: str) -> dict[str, Any]:
+    """Build platform-appropriate action data for an actionable notification."""
+    actions = [
+        {"action": ACTION_MARK_TAKEN, "title": "Mark taken"},
+        {"action": ACTION_REMIND_5MIN, "title": "Remind in 5 min"},
+    ]
+    if _is_ios(hass, target):
+        return {
+            "push": {
+                "category": "MEDICATION_ALERT",
+            },
+            "actions": actions,
+            "tag": f"medication_{med_id}",
+        }
+    # Android
+    return {
+        "actions": actions,
+        "tag": f"medication_{med_id}",
+        "persistent": False,
+    }
+
 
 class MedicationNotifier:
     """Fires HA notifications based on medication state changes."""
@@ -47,9 +92,75 @@ class MedicationNotifier:
         self._hass = hass
         self._coordinator = coordinator
         # Tracks which notifications have already fired today to prevent repeats.
-        # Keys: "{med_id}_{event}_{slot}" e.g. "abc_overdue_08:00", "abc_due_soon_08:00"
         self._fired: set[str] = set()
         self._fired_date: date = date.today()
+        # Unsubscribe handle for the mobile_app_notification_action listener
+        self._unsub_action: Any = None
+        self._register_action_listener()
+
+    # ------------------------------------------------------------------
+    # Action listener
+    # ------------------------------------------------------------------
+
+    def _register_action_listener(self) -> None:
+        """Listen for actionable notification responses from the mobile app."""
+        @callback
+        def _handle_action(event: Any) -> None:
+            action = event.data.get("action", "")
+            if action not in (ACTION_MARK_TAKEN, ACTION_REMIND_5MIN):
+                return
+
+            # The tag we set was "medication_{med_id}"
+            tag = event.data.get("tag", "")
+            if not tag.startswith("medication_"):
+                return
+            med_id = tag.replace("medication_", "", 1)
+
+            if action == ACTION_MARK_TAKEN:
+                self._hass.async_create_task(
+                    self._coordinator.async_mark_taken(med_id)
+                )
+            elif action == ACTION_REMIND_5MIN:
+                self._schedule_reminder(med_id)
+
+        self._unsub_action = self._hass.bus.async_listen(
+            "mobile_app_notification_action", _handle_action
+        )
+
+    def _schedule_reminder(self, med_id: str) -> None:
+        """Fire a reminder notification for med_id after 5 minutes."""
+        @callback
+        def _send_reminder(_now: Any) -> None:
+            med = self._coordinator.get_medication(med_id)
+            if not med:
+                return
+            notif_config = self._coordinator.notification_config
+            state = self._coordinator.get_med_state(med_id)
+            title = notif_config.get(CONF_NOTIF_OVERDUE_TITLE, DEFAULT_OVERDUE_TITLE)
+            message = notif_config.get(CONF_NOTIF_OVERDUE_MESSAGE, DEFAULT_OVERDUE_MESSAGE)
+            self._hass.async_create_task(
+                self._send(
+                    notif_config,
+                    title,
+                    message,
+                    {
+                        "medication": med["name"],
+                        "dose": med.get("dose", ""),
+                        "time": state.get("next_dose_time", ""),
+                        "overdue_since": _format_time(state.get("overdue_since", "")),
+                    },
+                    med_id=med_id,
+                    actionable=True,
+                )
+            )
+
+        async_call_later(self._hass, 300, _send_reminder)
+
+    def unsubscribe(self) -> None:
+        """Clean up the event listener on unload."""
+        if self._unsub_action is not None:
+            self._unsub_action()
+            self._unsub_action = None
 
     # ------------------------------------------------------------------
     # Public entry points
@@ -97,6 +208,8 @@ class MedicationNotifier:
                 "time": state.get("next_dose_time", ""),
                 "overdue_since": "",
             },
+            med_id=med_id,
+            actionable=False,
         )
 
     # ------------------------------------------------------------------
@@ -127,9 +240,7 @@ class MedicationNotifier:
 
         delay = notif_config.get(CONF_NOTIF_OVERDUE_DELAY, DEFAULT_OVERDUE_DELAY)
         if delay and delay > 0:
-            # Check if enough time has passed since overdue_since
             if overdue_since:
-                from datetime import datetime
                 try:
                     overdue_dt = datetime.fromisoformat(overdue_since)
                     from homeassistant.util.dt import now as ha_now
@@ -151,6 +262,8 @@ class MedicationNotifier:
                 "time": state.get("next_dose_time", ""),
                 "overdue_since": _format_time(overdue_since),
             },
+            med_id=med["id"],
+            actionable=True,
         )
         self._fired.add(fire_key)
 
@@ -188,11 +301,13 @@ class MedicationNotifier:
                 "time": next_dose_time,
                 "overdue_since": "",
             },
+            med_id=med["id"],
+            actionable=True,
         )
         self._fired.add(fire_key)
 
     # ------------------------------------------------------------------
-    # Helpers
+    # Send
     # ------------------------------------------------------------------
 
     async def _send(
@@ -201,10 +316,11 @@ class MedicationNotifier:
         title_template: str,
         message_template: str,
         placeholders: dict[str, str],
+        med_id: str = "",
+        actionable: bool = False,
     ) -> None:
         """Render templates and call the notify service."""
         target = notif_config.get(CONF_NOTIF_TARGET, DEFAULT_NOTIFY_TARGET)
-        # target is e.g. "notify.persistent_notification" or "notify.mobile_app_phone"
         parts = target.split(".", 1)
         if len(parts) != 2:
             _LOGGER.warning("Invalid notify target: %s", target)
@@ -214,11 +330,16 @@ class MedicationNotifier:
         title = _render(title_template, placeholders)
         message = _render(message_template, placeholders)
 
+        service_data: dict[str, Any] = {"title": title, "message": message}
+
+        if actionable and med_id and target != DEFAULT_NOTIFY_TARGET:
+            service_data["data"] = _build_action_data(self._hass, target, med_id)
+
         try:
             await self._hass.services.async_call(
                 domain,
                 service,
-                {"title": title, "message": message},
+                service_data,
                 blocking=False,
             )
         except Exception as err:
@@ -249,7 +370,6 @@ def _format_time(iso_str: str) -> str:
     if not iso_str:
         return ""
     try:
-        from datetime import datetime
         dt = datetime.fromisoformat(iso_str)
         return dt.strftime("%H:%M")
     except ValueError:

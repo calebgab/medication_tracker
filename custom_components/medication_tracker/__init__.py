@@ -79,6 +79,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: MedicationTrackerConfig
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
+    if hasattr(entry.runtime_data, "_notifier") and entry.runtime_data._notifier:
+        entry.runtime_data._notifier.unsubscribe()
+
     remaining = [
         e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id
     ]
