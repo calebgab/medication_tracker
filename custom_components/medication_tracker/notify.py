@@ -11,6 +11,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_call_later
 
 from .const import (
+    MED_TYPE_PRN,
     CONF_NOTIF_DUE_SOON_ENABLED,
     CONF_NOTIF_DUE_SOON_MESSAGE,
     CONF_NOTIF_DUE_SOON_TITLE,
@@ -192,6 +193,9 @@ class MedicationNotifier:
         notif_config = self._coordinator.notification_config
 
         for med in self._coordinator.medications:
+            # PRN medications are excluded from all automatic notifications
+            if med.get("med_type") == MED_TYPE_PRN:
+                continue
             med_id = med["id"]
             state = self._coordinator.get_med_state(med_id)
             overrides = med.get(CONF_NOTIF_OVERRIDES, {})

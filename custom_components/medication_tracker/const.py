@@ -51,6 +51,25 @@ DUE_SOON_MINUTES = 60
 
 DAYS_OF_WEEK = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
+# Medication types
+MED_TYPE_SCHEDULED = "scheduled"
+MED_TYPE_PRN = "prn"
+CONF_MED_TYPE = "med_type"
+
+# PRN config keys
+CONF_PRN_MAX_PER_DAY = "prn_max_per_day"
+CONF_PRN_MAX_PER_24H = "prn_max_per_24h"
+CONF_PRN_MIN_HOURS = "prn_min_hours"
+
+# PRN sensor/binary sensor suffixes
+SUFFIX_NEXT_AVAILABLE = "next_available"
+SUFFIX_AVAILABLE = "available"
+
+# PRN defaults
+DEFAULT_PRN_MAX_PER_DAY = 4
+DEFAULT_PRN_MAX_PER_24H = 4
+DEFAULT_PRN_MIN_HOURS = 4
+
 # ---------------------------------------------------------------------------
 # Notification config keys
 # ---------------------------------------------------------------------------

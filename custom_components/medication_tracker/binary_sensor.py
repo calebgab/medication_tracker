@@ -20,6 +20,8 @@ from .const import (
     ATTR_NOTES,
     ATTR_TIMES,
     DOMAIN,
+    MED_TYPE_PRN,
+    SUFFIX_AVAILABLE,
     SUFFIX_DUE,
     SUFFIX_OVERDUE,
 )
@@ -67,6 +69,11 @@ def _binary_sensors_for_med(
     coordinator: MedicationCoordinator, entry_id: str, med_id: str
 ) -> list[BinarySensorEntity]:
     _tracked_med_ids.setdefault(entry_id, set()).add(med_id)
+    med = coordinator.get_medication(med_id)
+    if med and med.get("med_type") == MED_TYPE_PRN:
+        return [
+            MedicationAvailableSensor(coordinator, entry_id, med_id),
+        ]
     return [
         MedicationOverdueSensor(coordinator, entry_id, med_id),
         MedicationDueSoonSensor(coordinator, entry_id, med_id),
@@ -186,5 +193,43 @@ class MedicationDueSoonSensor(MedicationBaseBinarySensor):
         return {
             ATTR_NEXT_DOSE: data.get(ATTR_NEXT_DOSE),
             "next_dose_time": data.get("next_dose_time"),
+            ATTR_DOSE: data.get(ATTR_DOSE, ""),
+        }
+
+
+# ---------------------------------------------------------------------------
+# PRN: Available binary sensor
+# ---------------------------------------------------------------------------
+
+
+class MedicationAvailableSensor(MedicationBaseBinarySensor):
+    """Binary sensor: True when a PRN medication is available to take."""
+
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
+
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
+        super().__init__(coordinator, entry_id, med_id, SUFFIX_AVAILABLE)
+
+    @property
+    def name(self) -> str:
+        return "Available"
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._state_data.get("is_available", True))
+
+    @property
+    def icon(self) -> str:
+        return "mdi:pill" if self.is_on else "mdi:pill-off"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._state_data
+        return {
+            "next_available": data.get("next_available"),
+            "doses_taken_today": data.get("doses_taken_today", 0),
+            "doses_taken_24h": data.get("doses_taken_24h", 0),
             ATTR_DOSE: data.get(ATTR_DOSE, ""),
         }

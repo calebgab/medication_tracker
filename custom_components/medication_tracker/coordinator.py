@@ -14,7 +14,15 @@ import homeassistant.util.dt as dt_util
 
 from .const import (
     CONF_NOTIFICATIONS,
+    CONF_PRN_MAX_PER_24H,
+    CONF_PRN_MAX_PER_DAY,
+    CONF_PRN_MIN_HOURS,
+    DEFAULT_PRN_MAX_PER_24H,
+    DEFAULT_PRN_MAX_PER_DAY,
+    DEFAULT_PRN_MIN_HOURS,
     DOMAIN,
+    MED_TYPE_PRN,
+    MED_TYPE_SCHEDULED,
     OVERDUE_GRACE_MINUTES,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -112,9 +120,13 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "id": med_id,
             "name": config["name"],
             "dose": config.get("dose", ""),
+            "med_type": config.get("med_type", MED_TYPE_SCHEDULED),
             "times": config.get("times", []),
             "days": config.get("days", []),
             "notes": config.get("notes", ""),
+            "prn_max_per_day": config.get("prn_max_per_day", DEFAULT_PRN_MAX_PER_DAY),
+            "prn_max_per_24h": config.get("prn_max_per_24h", DEFAULT_PRN_MAX_PER_24H),
+            "prn_min_hours": config.get("prn_min_hours", DEFAULT_PRN_MIN_HOURS),
         }
         self._medications.append(entry)
         await self._async_save()
@@ -128,9 +140,13 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "id": med_id,
                     "name": config.get("name", med["name"]),
                     "dose": config.get("dose", med["dose"]),
+                    "med_type": config.get("med_type", med.get("med_type", MED_TYPE_SCHEDULED)),
                     "times": config.get("times", med["times"]),
                     "days": config.get("days", med["days"]),
                     "notes": config.get("notes", med["notes"]),
+                    "prn_max_per_day": config.get("prn_max_per_day", med.get("prn_max_per_day", DEFAULT_PRN_MAX_PER_DAY)),
+                    "prn_max_per_24h": config.get("prn_max_per_24h", med.get("prn_max_per_24h", DEFAULT_PRN_MAX_PER_24H)),
+                    "prn_min_hours": config.get("prn_min_hours", med.get("prn_min_hours", DEFAULT_PRN_MIN_HOURS)),
                     # Preserve notification overrides
                     "notification_overrides": config.get(
                         "notification_overrides",
@@ -237,6 +253,11 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------------------
 
     def _build_med_state(self, med: dict[str, Any], now: datetime) -> dict[str, Any]:
+        if med.get("med_type") == MED_TYPE_PRN:
+            return self._build_prn_state(med, now)
+        return self._build_scheduled_state(med, now)
+
+    def _build_scheduled_state(self, med: dict[str, Any], now: datetime) -> dict[str, Any]:
         today = now.date()
         today_str = today.isoformat()
         scheduled_times: list[str] = med.get("times", [])
@@ -330,6 +351,98 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "next_dose_time": next_dose_time_str,
             "last_taken": last_taken,
             "streak": streak,
+        }
+
+    def _build_prn_state(self, med: dict[str, Any], now: datetime) -> dict[str, Any]:
+        """Derive state for a PRN (as-needed) medication."""
+        today = now.date()
+        today_str = today.isoformat()
+
+        max_per_day: int = med.get("prn_max_per_day", DEFAULT_PRN_MAX_PER_DAY)
+        max_per_24h: int = med.get("prn_max_per_24h", DEFAULT_PRN_MAX_PER_24H)
+        min_hours: float = med.get("prn_min_hours", DEFAULT_PRN_MIN_HOURS)
+
+        # All log entries (not just today) needed for 24h rolling window
+        all_entries = self._dose_log.get(med["id"], [])
+        taken_entries_all = [e for e in all_entries if e.get("action") == "taken" and e.get("taken_at")]
+
+        # Today's taken entries
+        today_entries = [e for e in all_entries if e.get("date") == today_str]
+        taken_today = [e for e in today_entries if e.get("action") == "taken"]
+
+        # 24h rolling window
+        window_start = now - timedelta(hours=24)
+        taken_24h = [
+            e for e in taken_entries_all
+            if e.get("taken_at") and datetime.fromisoformat(e["taken_at"]) >= window_start
+        ]
+
+        # Last taken
+        last_taken: str | None = None
+        last_taken_dt: datetime | None = None
+        if taken_entries_all:
+            last_taken = max(
+                (e["taken_at"] for e in taken_entries_all if e.get("taken_at")),
+                default=None,
+            )
+            if last_taken:
+                last_taken_dt = datetime.fromisoformat(last_taken)
+
+        # Determine availability
+        is_available = True
+        next_available_dt: datetime | None = None
+
+        # Check daily max
+        if len(taken_today) >= max_per_day:
+            is_available = False
+            # Not available again until tomorrow
+            next_available_dt = None
+
+        # Check 24h rolling max
+        elif len(taken_24h) >= max_per_24h:
+            is_available = False
+            # Available when oldest dose in window falls out
+            oldest_in_window = min(
+                datetime.fromisoformat(e["taken_at"]) for e in taken_24h if e.get("taken_at")
+            )
+            next_available_dt = oldest_in_window + timedelta(hours=24)
+
+        # Check min hours between doses
+        elif last_taken_dt is not None:
+            min_delta = timedelta(hours=min_hours)
+            earliest_next = last_taken_dt + min_delta
+            if now < earliest_next:
+                is_available = False
+                next_available_dt = earliest_next
+
+        streak = self._calculate_streak(med["id"], today)
+
+        return {
+            "name": med["name"],
+            "dose": med.get("dose", ""),
+            "notes": med.get("notes", ""),
+            "med_type": MED_TYPE_PRN,
+            "prn_max_per_day": max_per_day,
+            "prn_max_per_24h": max_per_24h,
+            "prn_min_hours": min_hours,
+            "is_available": is_available,
+            "next_available": next_available_dt.isoformat() if next_available_dt else None,
+            "doses_taken_today": len(taken_today),
+            "doses_taken_24h": len(taken_24h),
+            "last_taken": last_taken,
+            "streak": streak,
+            # Scheduled fields not applicable — set to safe defaults
+            "times": [],
+            "days": [],
+            "scheduled_today": False,
+            "taken_today": len(taken_today),
+            "skipped_today": 0,
+            "doses_scheduled_today": 0,
+            "is_overdue": False,
+            "overdue_since": None,
+            "is_due_soon": False,
+            "next_dose": None,
+            "next_dose_time": None,
         }
 
     def _calculate_streak(self, med_id: str, today: date) -> int:

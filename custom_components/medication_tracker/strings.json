@@ -29,7 +29,11 @@
           "dose": "Dose (e.g. 10mg)",
           "times": "Scheduled times (HH:MM, comma-separated)",
           "days": "Days (mon, tue, wed\u2026 or leave blank for every day)",
-          "notes": "Notes"
+          "notes": "Notes",
+          "med_type": "Medication type",
+          "prn_max_per_day": "Max doses per day",
+          "prn_max_per_24h": "Max doses per 24 hours (rolling)",
+          "prn_min_hours": "Minimum hours between doses"
         }
       },
       "edit_medication": {
@@ -39,7 +43,11 @@
           "dose": "Dose",
           "times": "Scheduled times",
           "days": "Days",
-          "notes": "Notes"
+          "notes": "Notes",
+          "med_type": "Medication type",
+          "prn_max_per_day": "Max doses per day",
+          "prn_max_per_24h": "Max doses per 24 hours (rolling)",
+          "prn_min_hours": "Minimum hours between doses"
         }
       },
       "remove_medication": {

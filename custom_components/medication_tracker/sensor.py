@@ -28,7 +28,9 @@ from .const import (
     ATTR_TAKEN_TODAY,
     ATTR_TIMES,
     DOMAIN,
+    MED_TYPE_PRN,
     SUFFIX_LAST_TAKEN,
+    SUFFIX_NEXT_AVAILABLE,
     SUFFIX_NEXT_DOSE,
     SUFFIX_STREAK,
     SUFFIX_TAKEN_TODAY,
@@ -80,6 +82,14 @@ def _sensors_for_med(
 ) -> list[SensorEntity]:
     """Return all sensor entities for a single medication."""
     _tracked_med_ids.setdefault(entry_id, set()).add(med_id)
+    med = coordinator.get_medication(med_id)
+    if med and med.get("med_type") == MED_TYPE_PRN:
+        return [
+            MedicationNextAvailableSensor(coordinator, entry_id, med_id),
+            MedicationLastTakenSensor(coordinator, entry_id, med_id),
+            MedicationStreakSensor(coordinator, entry_id, med_id),
+            MedicationTakenTodaySensor(coordinator, entry_id, med_id),
+        ]
     return [
         MedicationNextDoseSensor(coordinator, entry_id, med_id),
         MedicationLastTakenSensor(coordinator, entry_id, med_id),
@@ -275,4 +285,46 @@ class MedicationTakenTodaySensor(MedicationBaseSensor):
             "doses_scheduled_today": data.get("doses_scheduled_today", 0),
             ATTR_SKIPPED_TODAY: data.get(ATTR_SKIPPED_TODAY, 0),
             "scheduled_today": data.get("scheduled_today", True),
+        }
+
+
+# ---------------------------------------------------------------------------
+# PRN: Next available sensor
+# ---------------------------------------------------------------------------
+
+
+class MedicationNextAvailableSensor(MedicationBaseSensor):
+    """Sensor showing when a PRN medication can next be taken."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_translation_key = "next_available"
+
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
+        super().__init__(coordinator, entry_id, med_id, SUFFIX_NEXT_AVAILABLE)
+
+    @property
+    def name(self) -> str:
+        return "Next Available"
+
+    @property
+    def native_value(self) -> datetime | None:
+        next_available_str = self._state_data.get("next_available")
+        if next_available_str:
+            return dt_util.parse_datetime(next_available_str)
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._state_data
+        return {
+            "is_available": data.get("is_available", True),
+            "doses_taken_today": data.get("doses_taken_today", 0),
+            "doses_taken_24h": data.get("doses_taken_24h", 0),
+            "prn_max_per_day": data.get("prn_max_per_day"),
+            "prn_max_per_24h": data.get("prn_max_per_24h"),
+            "prn_min_hours": data.get("prn_min_hours"),
+            ATTR_DOSE: data.get(ATTR_DOSE, ""),
+            ATTR_NOTES: data.get(ATTR_NOTES, ""),
         }
