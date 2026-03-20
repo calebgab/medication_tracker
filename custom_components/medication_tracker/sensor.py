@@ -150,7 +150,7 @@ class MedicationNextDoseSensor(MedicationBaseSensor):
 
     @property
     def name(self) -> str:
-        return f"{self._med_name} Next Dose"
+        return "Next Dose"
 
     @property
     def native_value(self) -> datetime | None:
@@ -188,7 +188,7 @@ class MedicationLastTakenSensor(MedicationBaseSensor):
 
     @property
     def name(self) -> str:
-        return f"{self._med_name} Last Taken"
+        return "Last Taken"
 
     @property
     def native_value(self) -> datetime | None:
@@ -226,7 +226,7 @@ class MedicationStreakSensor(MedicationBaseSensor):
 
     @property
     def name(self) -> str:
-        return f"{self._med_name} Streak"
+        return "Streak"
 
     @property
     def native_value(self) -> int:
@@ -262,7 +262,7 @@ class MedicationTakenTodaySensor(MedicationBaseSensor):
 
     @property
     def name(self) -> str:
-        return f"{self._med_name} Taken Today"
+        return "Taken Today"
 
     @property
     def native_value(self) -> int:

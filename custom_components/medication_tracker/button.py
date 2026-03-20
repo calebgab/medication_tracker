@@ -118,7 +118,7 @@ class MedicationMarkTakenButton(MedicationBaseButton):
 
     @property
     def name(self) -> str:
-        return f"{self._med_name} Mark taken"
+        return "Mark taken"
 
     async def async_press(self) -> None:
         """Handle button press — mark dose taken with correct scheduled_time."""
@@ -153,7 +153,7 @@ class MedicationMarkSkippedButton(MedicationBaseButton):
 
     @property
     def name(self) -> str:
-        return f"{self._med_name} Mark skipped"
+        return "Mark skipped"
 
     async def async_press(self) -> None:
         """Handle button press — mark dose skipped with correct scheduled_time."""

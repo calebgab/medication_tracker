@@ -134,7 +134,7 @@ class MedicationOverdueSensor(MedicationBaseBinarySensor):
 
     @property
     def name(self) -> str:
-        return f"{self._med_name} Overdue"
+        return "Overdue"
 
     @property
     def is_on(self) -> bool:
@@ -170,7 +170,7 @@ class MedicationDueSoonSensor(MedicationBaseBinarySensor):
 
     @property
     def name(self) -> str:
-        return f"{self._med_name} Due Soon"
+        return "Due Soon"
 
     @property
     def is_on(self) -> bool:
