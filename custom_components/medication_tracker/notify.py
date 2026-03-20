@@ -122,15 +122,20 @@ class MedicationNotifier:
             _LOGGER.debug("Notification action %s received for med %s", action, med_id)
 
             if is_taken:
-                # Pass the overdue scheduled_time so the coordinator marks that slot as handled
+                # Pass the scheduled_time so the coordinator marks the correct slot as handled,
+                # clearing both is_overdue and is_due_soon as appropriate.
                 state = self._coordinator.get_med_state(med_id)
                 scheduled_time = None
                 if state.get("is_overdue") and state.get("overdue_since"):
+                    # Overdue — extract the time from overdue_since
                     try:
                         overdue_dt = datetime.fromisoformat(state["overdue_since"])
                         scheduled_time = overdue_dt.strftime("%H:%M")
                     except (ValueError, KeyError):
                         pass
+                elif state.get("is_due_soon") and state.get("next_dose_time"):
+                    # Due soon — use the upcoming scheduled slot time
+                    scheduled_time = state.get("next_dose_time")
                 self._hass.async_create_task(
                     self._coordinator.async_mark_taken(med_id, scheduled_time=scheduled_time)
                 )
