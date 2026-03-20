@@ -1,7 +1,7 @@
 """Constants for the Medication Tracker integration."""
 
 DOMAIN = "medication_tracker"
-PLATFORMS = ["sensor", "binary_sensor"]
+PLATFORMS = ["sensor", "binary_sensor", "button"]
 
 # Config keys
 CONF_MEDICATIONS = "medications"
@@ -22,6 +22,8 @@ SUFFIX_STREAK = "streak"
 SUFFIX_TAKEN_TODAY = "taken_today"
 SUFFIX_DUE = "due"
 SUFFIX_OVERDUE = "overdue"
+SUFFIX_MARK_TAKEN = "mark_taken"
+SUFFIX_MARK_SKIPPED = "mark_skipped"
 
 # Services
 SERVICE_MARK_TAKEN = "mark_taken"
