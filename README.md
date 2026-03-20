@@ -182,7 +182,7 @@ A custom card is available that shows all your medications in one place, includi
 
 ### Installation
 
-1. Copy `www/medication-tracker-card.js` from the [releases page](https://github.com/calebgab/medication_tracker/releases) into your Home Assistant `www` folder (i.e. `config/www/medication-tracker-card.js`)
+1. Copy `www/medication-tracker-card.js` from the main directory into your Home Assistant `www` folder (i.e. `config/www/medication-tracker-card.js`)
 2. Go to **Settings → Dashboards → Resources**
 3. Click **Add resource**
 4. Set URL to `/local/medication-tracker-card.js` and type to **JavaScript module**
