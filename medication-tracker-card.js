@@ -48,14 +48,14 @@ class MedicationTrackerCard extends HTMLElement {
       };
     });
 
-    const prnMeds = nextAvailableSensors.map(([entityId, state]) => {
+    const asNeededMeds = nextAvailableSensors.map(([entityId, state]) => {
       const base = entityId.replace("sensor.", "").replace("_next_available", "");
       const friendlyBase = state.attributes.friendly_name?.replace(/\s*Next Available$/i, "") || base;
       const get = (domain, suffix) => states[`${domain}.${base}_${suffix}`] || null;
       return {
         name: friendlyBase,
         base,
-        med_type: "prn",
+        med_type: "as_needed",
         next_available: state,
         available: get("binary_sensor", "available"),
         last_taken: get("sensor", "last_taken"),
@@ -66,7 +66,7 @@ class MedicationTrackerCard extends HTMLElement {
       };
     });
 
-    this._medications = [...scheduledMeds, ...prnMeds];
+    this._medications = [...scheduledMeds, ...asNeededMeds];
   }
 
   _formatRelative(isoStr) {
@@ -115,10 +115,10 @@ class MedicationTrackerCard extends HTMLElement {
     `;
   }
 
-  _renderPrnMed(med) {
+  _renderAsNeededMed(med) {
     const isAvailable = med.available?.state === "on";
     const nextAvailableStr = med.next_available?.state;
-    const maxPerDay = med.next_available?.attributes?.prn_max_per_day ?? "?";
+    const maxPerDay = med.next_available?.attributes?.as_needed_max_per_day ?? "?";
     const takenToday = med.taken_today?.state ?? "0";
     const lastTaken = this._formatRelative(med.last_taken?.state);
     const btnTakenId = med.btn_taken ? `button.${med.base}_mark_taken` : null;
@@ -135,7 +135,7 @@ class MedicationTrackerCard extends HTMLElement {
       badge = `<span class="status-badge badge-limit">Limit reached</span>`;
       availabilityInfo = "Daily limit reached";
     } else {
-      rowClass += " prn-waiting";
+      rowClass += " as-needed-waiting";
       const countdown = this._formatCountdown(nextAvailableStr);
       badge = `<span class="status-badge badge-waiting">Available ${countdown}</span>`;
       availabilityInfo = `Next available ${countdown}`;
@@ -143,7 +143,7 @@ class MedicationTrackerCard extends HTMLElement {
 
     return `
       <div class="${rowClass}">
-        <div class="med-name">${med.name}<span class="prn-tag">PRN</span>${badge}</div>
+        <div class="med-name">${med.name}<span class="as-needed-tag">PRN</span>${badge}</div>
         <div class="stats">
           <div class="stat"><span class="stat-label">Availability</span><span class="stat-value">${availabilityInfo}</span></div>
           <div class="stat"><span class="stat-label">Last taken</span><span class="stat-value">${lastTaken}</span></div>
@@ -203,8 +203,8 @@ class MedicationTrackerCard extends HTMLElement {
       .btn-skipped { background: var(--secondary-background-color, #f5f5f5); color: var(--primary-text-color); border: 1px solid var(--divider-color, #e0e0e0); }
       .empty { text-align: center; color: var(--secondary-text-color); padding: 24px; font-size: 14px; line-height: 1.6; }
       .med-row.available { border-color: var(--success-color, #43a047); background: rgba(67,160,71,0.06); }
-      .med-row.prn-waiting { border-color: var(--warning-color, #ffa600); background: rgba(255,166,0,0.06); }
-      .prn-tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--secondary-background-color); color: var(--secondary-text-color); border: 1px solid var(--divider-color); font-weight: 500; }
+      .med-row.as-needed-waiting { border-color: var(--warning-color, #ffa600); background: rgba(255,166,0,0.06); }
+      .as-needed-tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--secondary-background-color); color: var(--secondary-text-color); border: 1px solid var(--divider-color); font-weight: 500; }
       .badge-waiting { background: var(--warning-color, #ffa600); color: white; }
       .badge-limit { background: var(--error-color, #db4437); color: white; }
       .btn-disabled { opacity: 0.4; cursor: not-allowed; }
@@ -215,8 +215,8 @@ class MedicationTrackerCard extends HTMLElement {
       rows = `<div class="empty">No medications found.<br>Add medications via the integration settings.</div>`;
     } else {
       rows = this._medications.map(med => {
-        if (med.med_type === "prn") {
-          return this._renderPrnMed(med);
+        if (med.med_type === "as_needed") {
+          return this._renderAsNeededMed(med);
         }
         return this._renderScheduledMed(med);
       }).join("");

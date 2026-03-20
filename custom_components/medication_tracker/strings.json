@@ -27,13 +27,8 @@
         "data": {
           "name": "Medication name",
           "dose": "Dose (e.g. 10mg)",
-          "times": "Scheduled times (HH:MM, comma-separated)",
-          "days": "Days (mon, tue, wed\u2026 or leave blank for every day)",
-          "notes": "Notes",
           "med_type": "Medication type",
-          "prn_max_per_day": "Max doses per day",
-          "prn_max_per_24h": "Max doses per 24 hours (rolling)",
-          "prn_min_hours": "Minimum hours between doses"
+          "notes": "Notes"
         }
       },
       "edit_medication": {
@@ -41,13 +36,8 @@
         "data": {
           "name": "Medication name",
           "dose": "Dose",
-          "times": "Scheduled times",
-          "days": "Days",
-          "notes": "Notes",
           "med_type": "Medication type",
-          "prn_max_per_day": "Max doses per day",
-          "prn_max_per_24h": "Max doses per 24 hours (rolling)",
-          "prn_min_hours": "Minimum hours between doses"
+          "notes": "Notes"
         }
       },
       "remove_medication": {
@@ -106,6 +96,40 @@
           "override_overdue": "Alert when overdue",
           "override_due_soon": "Alert when due soon",
           "override_taken": "Confirm when taken"
+        }
+      },
+      "add_medication_scheduled": {
+        "title": "Scheduled times",
+        "description": "Set the times and days this medication should be taken.",
+        "data": {
+          "times": "Scheduled times (HH:MM, comma-separated)",
+          "days": "Days (mon, tue, wed\u2026 or leave blank for every day)"
+        }
+      },
+      "add_medication_as_needed": {
+        "title": "As-needed limits",
+        "description": "Set the dosing limits for this as-needed medication.",
+        "data": {
+          "as_needed_max_per_day": "Max doses per day",
+          "as_needed_max_per_24h": "Max doses per 24 hours (rolling)",
+          "as_needed_min_hours": "Minimum hours between doses"
+        }
+      },
+      "edit_medication_scheduled": {
+        "title": "Scheduled times",
+        "description": "Edit the times and days this medication should be taken.",
+        "data": {
+          "times": "Scheduled times (HH:MM, comma-separated)",
+          "days": "Days (mon, tue, wed\u2026 or leave blank for every day)"
+        }
+      },
+      "edit_medication_as_needed": {
+        "title": "As-needed limits",
+        "description": "Edit the dosing limits for this as-needed medication.",
+        "data": {
+          "as_needed_max_per_day": "Max doses per day",
+          "as_needed_max_per_24h": "Max doses per 24 hours (rolling)",
+          "as_needed_min_hours": "Minimum hours between doses"
         }
       }
     },

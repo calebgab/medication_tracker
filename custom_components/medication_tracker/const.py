@@ -53,22 +53,22 @@ DAYS_OF_WEEK = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 # Medication types
 MED_TYPE_SCHEDULED = "scheduled"
-MED_TYPE_PRN = "prn"
+MED_TYPE_AS_NEEDED = "as_needed"
 CONF_MED_TYPE = "med_type"
 
 # PRN config keys
-CONF_PRN_MAX_PER_DAY = "prn_max_per_day"
-CONF_PRN_MAX_PER_24H = "prn_max_per_24h"
-CONF_PRN_MIN_HOURS = "prn_min_hours"
+CONF_AS_NEEDED_MAX_PER_DAY = "as_needed_max_per_day"
+CONF_AS_NEEDED_MAX_PER_24H = "as_needed_max_per_24h"
+CONF_AS_NEEDED_MIN_HOURS = "as_needed_min_hours"
 
 # PRN sensor/binary sensor suffixes
 SUFFIX_NEXT_AVAILABLE = "next_available"
 SUFFIX_AVAILABLE = "available"
 
 # PRN defaults
-DEFAULT_PRN_MAX_PER_DAY = 4
-DEFAULT_PRN_MAX_PER_24H = 4
-DEFAULT_PRN_MIN_HOURS = 4
+DEFAULT_AS_NEEDED_MAX_PER_DAY = 4
+DEFAULT_AS_NEEDED_MAX_PER_24H = 4
+DEFAULT_AS_NEEDED_MIN_HOURS = 4
 
 # ---------------------------------------------------------------------------
 # Notification config keys

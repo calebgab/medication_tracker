@@ -18,13 +18,13 @@ from .const import (
     CONF_MED_TIMES,
     CONF_MED_TYPE,
     CONF_MEDICATIONS,
-    CONF_PRN_MAX_PER_24H,
-    CONF_PRN_MAX_PER_DAY,
-    CONF_PRN_MIN_HOURS,
-    DEFAULT_PRN_MAX_PER_24H,
-    DEFAULT_PRN_MAX_PER_DAY,
-    DEFAULT_PRN_MIN_HOURS,
-    MED_TYPE_PRN,
+    CONF_AS_NEEDED_MAX_PER_24H,
+    CONF_AS_NEEDED_MAX_PER_DAY,
+    CONF_AS_NEEDED_MIN_HOURS,
+    DEFAULT_AS_NEEDED_MAX_PER_24H,
+    DEFAULT_AS_NEEDED_MAX_PER_DAY,
+    DEFAULT_AS_NEEDED_MIN_HOURS,
+    MED_TYPE_AS_NEEDED,
     MED_TYPE_SCHEDULED,
     CONF_NOTIF_DUE_SOON_ENABLED,
     CONF_NOTIF_DUE_SOON_MESSAGE,
@@ -141,6 +141,8 @@ class MedicationOptionsFlow(OptionsFlow):
         self._entry = config_entry
         self._edit_id: str | None = None
         self._override_med_id: str | None = None
+        self._add_med_base: dict[str, Any] | None = None
+        self._edit_med_base: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------
     # Main menu
@@ -221,9 +223,9 @@ class MedicationOptionsFlow(OptionsFlow):
                         "times": times,
                         "days": days,
                         "notes": user_input.get(CONF_MED_NOTES, ""),
-                        "prn_max_per_day": user_input.get(CONF_PRN_MAX_PER_DAY, DEFAULT_PRN_MAX_PER_DAY),
-                        "prn_max_per_24h": user_input.get(CONF_PRN_MAX_PER_24H, DEFAULT_PRN_MAX_PER_24H),
-                        "prn_min_hours": user_input.get(CONF_PRN_MIN_HOURS, DEFAULT_PRN_MIN_HOURS),
+                        "as_needed_max_per_day": user_input.get(CONF_AS_NEEDED_MAX_PER_DAY, DEFAULT_AS_NEEDED_MAX_PER_DAY),
+                        "as_needed_max_per_24h": user_input.get(CONF_AS_NEEDED_MAX_PER_24H, DEFAULT_AS_NEEDED_MAX_PER_24H),
+                        "as_needed_min_hours": user_input.get(CONF_AS_NEEDED_MIN_HOURS, DEFAULT_AS_NEEDED_MIN_HOURS),
                     }
                 )
                 return await self.async_step_init()
@@ -235,18 +237,18 @@ class MedicationOptionsFlow(OptionsFlow):
                     vol.Required(CONF_MED_NAME): str,
                     vol.Optional(CONF_MED_DOSE, default=""): str,
                     vol.Required(CONF_MED_TYPE, default=MED_TYPE_SCHEDULED): vol.In(
-                        {MED_TYPE_SCHEDULED: "Scheduled (regular times)", MED_TYPE_PRN: "As-needed (PRN)"}
+                        {MED_TYPE_SCHEDULED: "Scheduled (regular times)", MED_TYPE_AS_NEEDED: "As-needed"}
                     ),
                     vol.Optional(CONF_MED_TIMES, default=""): str,
                     vol.Optional(CONF_MED_DAYS, default=""): str,
                     vol.Optional(CONF_MED_NOTES, default=""): str,
-                    vol.Optional(CONF_PRN_MAX_PER_DAY, default=DEFAULT_PRN_MAX_PER_DAY): vol.All(
+                    vol.Optional(CONF_AS_NEEDED_MAX_PER_DAY, default=DEFAULT_AS_NEEDED_MAX_PER_DAY): vol.All(
                         vol.Coerce(int), vol.Range(min=1, max=24)
                     ),
-                    vol.Optional(CONF_PRN_MAX_PER_24H, default=DEFAULT_PRN_MAX_PER_24H): vol.All(
+                    vol.Optional(CONF_AS_NEEDED_MAX_PER_24H, default=DEFAULT_AS_NEEDED_MAX_PER_24H): vol.All(
                         vol.Coerce(int), vol.Range(min=1, max=24)
                     ),
-                    vol.Optional(CONF_PRN_MIN_HOURS, default=DEFAULT_PRN_MIN_HOURS): vol.All(
+                    vol.Optional(CONF_AS_NEEDED_MIN_HOURS, default=DEFAULT_AS_NEEDED_MIN_HOURS): vol.All(
                         vol.Coerce(float), vol.Range(min=0.5, max=24)
                     ),
                 }
@@ -291,9 +293,9 @@ class MedicationOptionsFlow(OptionsFlow):
                         "times": times,
                         "days": days,
                         "notes": user_input.get(CONF_MED_NOTES, ""),
-                        "prn_max_per_day": user_input.get(CONF_PRN_MAX_PER_DAY, DEFAULT_PRN_MAX_PER_DAY),
-                        "prn_max_per_24h": user_input.get(CONF_PRN_MAX_PER_24H, DEFAULT_PRN_MAX_PER_24H),
-                        "prn_min_hours": user_input.get(CONF_PRN_MIN_HOURS, DEFAULT_PRN_MIN_HOURS),
+                        "as_needed_max_per_day": user_input.get(CONF_AS_NEEDED_MAX_PER_DAY, DEFAULT_AS_NEEDED_MAX_PER_DAY),
+                        "as_needed_max_per_24h": user_input.get(CONF_AS_NEEDED_MAX_PER_24H, DEFAULT_AS_NEEDED_MAX_PER_24H),
+                        "as_needed_min_hours": user_input.get(CONF_AS_NEEDED_MIN_HOURS, DEFAULT_AS_NEEDED_MIN_HOURS),
                     },
                 )
                 return await self.async_step_init()
@@ -309,18 +311,18 @@ class MedicationOptionsFlow(OptionsFlow):
                     vol.Required(CONF_MED_NAME, default=med["name"]): str,
                     vol.Optional(CONF_MED_DOSE, default=med.get("dose", "")): str,
                     vol.Required(CONF_MED_TYPE, default=med.get("med_type", MED_TYPE_SCHEDULED)): vol.In(
-                        {MED_TYPE_SCHEDULED: "Scheduled (regular times)", MED_TYPE_PRN: "As-needed (PRN)"}
+                        {MED_TYPE_SCHEDULED: "Scheduled (regular times)", MED_TYPE_AS_NEEDED: "As-needed"}
                     ),
                     vol.Optional(CONF_MED_TIMES, default=times_str): str,
                     vol.Optional(CONF_MED_DAYS, default=days_str): str,
                     vol.Optional(CONF_MED_NOTES, default=med.get("notes", "")): str,
-                    vol.Optional(CONF_PRN_MAX_PER_DAY, default=med.get("prn_max_per_day", DEFAULT_PRN_MAX_PER_DAY)): vol.All(
+                    vol.Optional(CONF_AS_NEEDED_MAX_PER_DAY, default=med.get("as_needed_max_per_day", DEFAULT_AS_NEEDED_MAX_PER_DAY)): vol.All(
                         vol.Coerce(int), vol.Range(min=1, max=24)
                     ),
-                    vol.Optional(CONF_PRN_MAX_PER_24H, default=med.get("prn_max_per_24h", DEFAULT_PRN_MAX_PER_24H)): vol.All(
+                    vol.Optional(CONF_AS_NEEDED_MAX_PER_24H, default=med.get("as_needed_max_per_24h", DEFAULT_AS_NEEDED_MAX_PER_24H)): vol.All(
                         vol.Coerce(int), vol.Range(min=1, max=24)
                     ),
-                    vol.Optional(CONF_PRN_MIN_HOURS, default=med.get("prn_min_hours", DEFAULT_PRN_MIN_HOURS)): vol.All(
+                    vol.Optional(CONF_AS_NEEDED_MIN_HOURS, default=med.get("as_needed_min_hours", DEFAULT_AS_NEEDED_MIN_HOURS)): vol.All(
                         vol.Coerce(float), vol.Range(min=0.5, max=24)
                     ),
                 }

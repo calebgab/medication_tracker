@@ -14,11 +14,11 @@ import homeassistant.util.dt as dt_util
 
 from .const import (
     CONF_NOTIFICATIONS,
-    DEFAULT_PRN_MAX_PER_24H,
-    DEFAULT_PRN_MAX_PER_DAY,
-    DEFAULT_PRN_MIN_HOURS,
+    DEFAULT_AS_NEEDED_MAX_PER_24H,
+    DEFAULT_AS_NEEDED_MAX_PER_DAY,
+    DEFAULT_AS_NEEDED_MIN_HOURS,
     DOMAIN,
-    MED_TYPE_PRN,
+    MED_TYPE_AS_NEEDED,
     MED_TYPE_SCHEDULED,
     OVERDUE_GRACE_MINUTES,
     STORAGE_KEY,
@@ -121,9 +121,9 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "times": config.get("times", []),
             "days": config.get("days", []),
             "notes": config.get("notes", ""),
-            "prn_max_per_day": config.get("prn_max_per_day", DEFAULT_PRN_MAX_PER_DAY),
-            "prn_max_per_24h": config.get("prn_max_per_24h", DEFAULT_PRN_MAX_PER_24H),
-            "prn_min_hours": config.get("prn_min_hours", DEFAULT_PRN_MIN_HOURS),
+            "as_needed_max_per_day": config.get("as_needed_max_per_day", DEFAULT_AS_NEEDED_MAX_PER_DAY),
+            "as_needed_max_per_24h": config.get("as_needed_max_per_24h", DEFAULT_AS_NEEDED_MAX_PER_24H),
+            "as_needed_min_hours": config.get("as_needed_min_hours", DEFAULT_AS_NEEDED_MIN_HOURS),
         }
         self._medications.append(entry)
         await self._async_save()
@@ -141,9 +141,9 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "times": config.get("times", med["times"]),
                     "days": config.get("days", med["days"]),
                     "notes": config.get("notes", med["notes"]),
-                    "prn_max_per_day": config.get("prn_max_per_day", med.get("prn_max_per_day", DEFAULT_PRN_MAX_PER_DAY)),
-                    "prn_max_per_24h": config.get("prn_max_per_24h", med.get("prn_max_per_24h", DEFAULT_PRN_MAX_PER_24H)),
-                    "prn_min_hours": config.get("prn_min_hours", med.get("prn_min_hours", DEFAULT_PRN_MIN_HOURS)),
+                    "as_needed_max_per_day": config.get("as_needed_max_per_day", med.get("as_needed_max_per_day", DEFAULT_AS_NEEDED_MAX_PER_DAY)),
+                    "as_needed_max_per_24h": config.get("as_needed_max_per_24h", med.get("as_needed_max_per_24h", DEFAULT_AS_NEEDED_MAX_PER_24H)),
+                    "as_needed_min_hours": config.get("as_needed_min_hours", med.get("as_needed_min_hours", DEFAULT_AS_NEEDED_MIN_HOURS)),
                     # Preserve notification overrides
                     "notification_overrides": config.get(
                         "notification_overrides",
@@ -250,8 +250,8 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------------------
 
     def _build_med_state(self, med: dict[str, Any], now: datetime) -> dict[str, Any]:
-        if med.get("med_type") == MED_TYPE_PRN:
-            return self._build_prn_state(med, now)
+        if med.get("med_type") == MED_TYPE_AS_NEEDED:
+            return self._build_as_needed_state(med, now)
         return self._build_scheduled_state(med, now)
 
     def _build_scheduled_state(self, med: dict[str, Any], now: datetime) -> dict[str, Any]:
@@ -350,14 +350,14 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "streak": streak,
         }
 
-    def _build_prn_state(self, med: dict[str, Any], now: datetime) -> dict[str, Any]:
+    def _build_as_needed_state(self, med: dict[str, Any], now: datetime) -> dict[str, Any]:
         """Derive state for a PRN (as-needed) medication."""
         today = now.date()
         today_str = today.isoformat()
 
-        max_per_day: int = med.get("prn_max_per_day", DEFAULT_PRN_MAX_PER_DAY)
-        max_per_24h: int = med.get("prn_max_per_24h", DEFAULT_PRN_MAX_PER_24H)
-        min_hours: float = med.get("prn_min_hours", DEFAULT_PRN_MIN_HOURS)
+        max_per_day: int = med.get("as_needed_max_per_day", DEFAULT_AS_NEEDED_MAX_PER_DAY)
+        max_per_24h: int = med.get("as_needed_max_per_24h", DEFAULT_AS_NEEDED_MAX_PER_24H)
+        min_hours: float = med.get("as_needed_min_hours", DEFAULT_AS_NEEDED_MIN_HOURS)
 
         # All log entries (not just today) needed for 24h rolling window
         all_entries = self._dose_log.get(med["id"], [])
@@ -418,10 +418,10 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "name": med["name"],
             "dose": med.get("dose", ""),
             "notes": med.get("notes", ""),
-            "med_type": MED_TYPE_PRN,
-            "prn_max_per_day": max_per_day,
-            "prn_max_per_24h": max_per_24h,
-            "prn_min_hours": min_hours,
+            "med_type": MED_TYPE_AS_NEEDED,
+            "as_needed_max_per_day": max_per_day,
+            "as_needed_max_per_24h": max_per_24h,
+            "as_needed_min_hours": min_hours,
             "is_available": is_available,
             "next_available": next_available_dt.isoformat() if next_available_dt else None,
             "doses_taken_today": len(taken_today),
