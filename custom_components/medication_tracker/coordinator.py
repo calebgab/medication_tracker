@@ -252,13 +252,19 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         next_dose_dt: datetime | None = None
         next_dose_time_str: str | None = None
+        # Collect all slots already handled today (taken or skipped)
+        handled_times: set[str] = {
+            e["scheduled_time"]
+            for e in today_entries
+            if e.get("scheduled_time")
+        }
         for t_str in sorted(scheduled_times):
             try:
                 t = time.fromisoformat(t_str)
             except ValueError:
                 continue
             candidate = datetime.combine(today, t, tzinfo=now.tzinfo)
-            if candidate > now:
+            if candidate > now and t_str not in handled_times:
                 next_dose_dt = candidate
                 next_dose_time_str = t_str
                 break
