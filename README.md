@@ -13,8 +13,11 @@ Track medications, scheduled doses, streaks, and overdue alerts — entirely loc
 - **Multiple medications** with individual schedules (times of day, specific days of week)
 - **Sensors** for next dose time, last taken timestamp, streak (consecutive days taken), and doses taken today
 - **Binary sensors** for overdue detection (with configurable grace period) and due-soon alerts (within 60 minutes)
+- **Button entities** to mark doses as taken or skipped — appear automatically on the device page
+- **Built-in notifications** — configure overdue, due soon, and taken confirmation alerts directly from the integration, with actionable notifications (Mark taken / Remind in 5 min) on iOS and Android
 - **Services** to mark doses taken or skipped, and reset today's log
 - **Full UI configuration** — add, edit, and remove medications via the Home Assistant UI (no YAML required)
+- **Optional Lovelace card** — a custom dashboard card showing all medications with status and action buttons
 - **Persistent storage** — survives restarts; today's log is pruned automatically at midnight
 
 ---
@@ -61,6 +64,31 @@ Click **Configure** on the integration card, choose **Add new medication**, and 
 
 Days can be entered as `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun` (or `0`–`6`).
 
+### Notifications
+
+Click **Configure** on the integration card, then choose **Notifications** to set up alerts. No automations required — notifications are fired directly by the integration.
+
+| Setting | Description |
+|---------|-------------|
+| Notify service | The HA notify service to use (e.g. `notify.mobile_app_your_phone`) — select from the dropdown of detected devices |
+| Alert when overdue | Send a notification when a dose is past its grace period |
+| Overdue delay | Extra minutes to wait after the grace period before notifying (0 = immediate) |
+| Alert when due soon | Send a notification when a dose is due within 60 minutes |
+| Taken confirmation | Send a notification when a dose is marked as taken |
+
+Notifications on iOS and Android include **Mark taken** and **Remind in 5 min** action buttons. Tapping Mark taken updates the sensors immediately without opening the app.
+
+You can also customise the notification title and message templates, and override notification settings per medication.
+
+**Available placeholders in message templates:**
+
+| Placeholder | Description |
+|-------------|-------------|
+| `{medication}` | Medication name |
+| `{dose}` | Dose description |
+| `{time}` | Scheduled time |
+| `{overdue_since}` | Time the dose became overdue |
+
 ---
 
 ## Entities
@@ -82,6 +110,15 @@ For each medication, the following entities are created (grouped under one devic
 |--------|-------------|
 | `binary_sensor.<name>_overdue` | `on` when a scheduled dose is past its grace period with no entry |
 | `binary_sensor.<name>_due_soon` | `on` when the next dose is within 60 minutes |
+
+### Buttons
+
+| Entity | Description |
+|--------|-------------|
+| `button.<name>_mark_taken` | Mark the current dose as taken |
+| `button.<name>_mark_skipped` | Mark the current dose as skipped |
+
+Buttons appear automatically on the device page and can be added to any Lovelace dashboard.
 
 ### State Attributes
 
@@ -137,6 +174,29 @@ Or look it up via the **Developer Tools → States** panel.
 
 ---
 
+## Optional: Lovelace Dashboard Card
+
+A custom card is available that shows all your medications in one place, including status, next dose time, last taken, streak, doses taken today, and Mark taken / Skip dose buttons.
+
+> **Note:** This card is optional and requires a one-time manual step. It is not installed automatically by HACS.
+
+### Installation
+
+1. Copy `www/medication-tracker-card.js` from the [releases page](https://github.com/calebgab/medication_tracker/releases) into your Home Assistant `www` folder (i.e. `config/www/medication-tracker-card.js`)
+2. Go to **Settings → Dashboards → Resources**
+3. Click **Add resource**
+4. Set URL to `/local/medication-tracker-card.js` and type to **JavaScript module**
+5. Click **Create** then reload the page
+
+### Adding the card to a dashboard
+
+1. Edit any dashboard
+2. Click **Add card**
+3. Scroll to the bottom and select **Custom: Medication Tracker**
+4. The card automatically discovers all your medications — no configuration needed
+
+---
+
 ## Automation Examples
 
 ### Reminder notification when overdue
@@ -186,7 +246,7 @@ automation:
         data:
           title: "💊 Good morning!"
           message: >
-            Aspirin due at 08:00. Current streak: 
+            Aspirin due at 08:00. Current streak:
             {{ states('sensor.aspirin_streak') }} days. Keep it up!
 ```
 
@@ -198,9 +258,9 @@ name: Mark Aspirin Taken
 icon: mdi:pill
 tap_action:
   action: call-service
-  service: medication_tracker.mark_taken
-  service_data:
-    medication_id: "your-medication-id-here"
+  service: button.press
+  target:
+    entity_id: button.aspirin_mark_taken
 ```
 
 ---
@@ -224,15 +284,21 @@ Check that your scheduled times are in `HH:MM` 24-hour format and that your HA t
 **Entities disappeared after a restart**
 This should not happen — medications are persisted in HA's `.storage` directory. If it does, check the HA logs for errors from the `medication_tracker` domain.
 
+**Notifications aren't working**
+Check that you have selected a notify target in **Configure → Notifications** and that the relevant toggles (overdue, due soon) are enabled. The notify service name must exactly match a service listed in Developer Tools → Services under `notify.`.
+
+**The Lovelace card isn't appearing in the card picker**
+Make sure the resource was added correctly (**Settings → Dashboards → Resources**) and that you did a full page reload after adding it.
+
 ---
 
 ## Contributing
 
-PRs welcome. Please run the test suite before submitting:
+PRs welcome. Please lint before submitting:
 
 ```bash
-pip install -r requirements_test.txt
-pytest tests/ -v
+pip install ruff
+ruff check custom_components/
 ```
 
 ---
