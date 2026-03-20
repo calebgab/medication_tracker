@@ -1,5 +1,7 @@
 # Medication Tracker for Home Assistant
 
+Still totally in BETA. Would NOT recommend deploying or trying this integration out!
+
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/calebgab/medication_tracker.svg)](https://github.com/calebgab/medication_tracker/releases)
 [![CI](https://github.com/calebgab/medication_tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/calebgab/medication_tracker/actions/workflows/ci.yml)
@@ -178,11 +180,13 @@ Or look it up via the **Developer Tools → States** panel.
 
 A custom card is available that shows all your medications in one place, including status, next dose time, last taken, streak, doses taken today, and Mark taken / Skip dose buttons.
 
+![Medication Tracker Lovelace Card](docs/lovelace-card.png)
+
 > **Note:** This card is optional and requires a one-time manual step. It is not installed automatically by HACS.
 
 ### Installation
 
-1. Copy `www/medication-tracker-card.js` from the main directory into your Home Assistant `www` folder (i.e. `config/www/medication-tracker-card.js`)
+1. Copy `www/medication-tracker-card.js` from this directory into your Home Assistant `www` folder (i.e. `config/www/medication-tracker-card.js`)
 2. Go to **Settings → Dashboards → Resources**
 3. Click **Add resource**
 4. Set URL to `/local/medication-tracker-card.js` and type to **JavaScript module**
