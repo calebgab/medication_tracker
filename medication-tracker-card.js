@@ -143,7 +143,7 @@ class MedicationTrackerCard extends HTMLElement {
 
     return `
       <div class="${rowClass}">
-        <div class="med-name">${med.name}<span class="as-needed-tag">PRN</span>${badge}</div>
+        <div class="med-name">${med.name}<span class="as-needed-tag">As-needed</span>${badge}</div>
         <div class="stats">
           <div class="stat"><span class="stat-label">Availability</span><span class="stat-value">${availabilityInfo}</span></div>
           <div class="stat"><span class="stat-label">Last taken</span><span class="stat-value">${lastTaken}</span></div>
