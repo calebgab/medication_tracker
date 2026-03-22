@@ -1,29 +1,39 @@
-"""Binary sensor platform for Medication Tracker."""
+"""Sensor platform for Medication Tracker."""
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from homeassistant.components.binary_sensor import (
-    BinarySensorDeviceClass,
-    BinarySensorEntity,
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+import homeassistant.util.dt as dt_util
 
 from .const import (
     ATTR_DOSE,
+    ATTR_LAST_TAKEN,
     ATTR_NEXT_DOSE,
     ATTR_NOTES,
+    ATTR_SCHEDULED_TIME,
+    ATTR_SKIPPED_TODAY,
+    ATTR_STREAK,
+    ATTR_TAKEN_TODAY,
     ATTR_TIMES,
     DOMAIN,
     MED_TYPE_AS_NEEDED,
-    SUFFIX_AVAILABLE,
-    SUFFIX_DUE,
-    SUFFIX_OVERDUE,
+    SUFFIX_LAST_TAKEN,
+    SUFFIX_NEXT_AVAILABLE,
+    SUFFIX_NEXT_DOSE,
+    SUFFIX_STREAK,
+    SUFFIX_TAKEN_TODAY,
 )
 from .coordinator import MedicationCoordinator
 
@@ -33,13 +43,14 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up binary sensor entities for each medication."""
+    """Set up sensor entities for each medication."""
     coordinator: MedicationCoordinator = entry.runtime_data
-    entities: list[BinarySensorEntity] = []
+    entities: list[SensorEntity] = []
     for med in coordinator.medications:
-        entities += _binary_sensors_for_med(coordinator, entry.entry_id, med["id"])
+        entities += _sensors_for_med(coordinator, entry.entry_id, med["id"])
     async_add_entities(entities)
 
+    # Dynamic addition when medications are added via options flow
     entry.async_on_unload(
         coordinator.async_add_listener(
             lambda: _async_update_entities(hass, coordinator, entry, async_add_entities)
@@ -56,37 +67,44 @@ def _async_update_entities(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    """Add sensors for any newly added medications."""
     known = _tracked_med_ids.setdefault(entry.entry_id, set())
-    new_entities: list[BinarySensorEntity] = []
+    new_entities: list[SensorEntity] = []
     for med in coordinator.medications:
         if med["id"] not in known:
-            new_entities += _binary_sensors_for_med(coordinator, entry.entry_id, med["id"])
+            new_entities += _sensors_for_med(coordinator, entry.entry_id, med["id"])
     if new_entities:
         async_add_entities(new_entities)
 
 
-def _binary_sensors_for_med(
+def _sensors_for_med(
     coordinator: MedicationCoordinator, entry_id: str, med_id: str
-) -> list[BinarySensorEntity]:
+) -> list[SensorEntity]:
+    """Return all sensor entities for a single medication."""
     _tracked_med_ids.setdefault(entry_id, set()).add(med_id)
     med = coordinator.get_medication(med_id)
     if med and med.get("med_type") == MED_TYPE_AS_NEEDED:
         return [
-            MedicationAvailableSensor(coordinator, entry_id, med_id),
+            MedicationNextAvailableSensor(coordinator, entry_id, med_id),
+            MedicationLastTakenSensor(coordinator, entry_id, med_id),
+            MedicationStreakSensor(coordinator, entry_id, med_id),
+            MedicationTakenTodaySensor(coordinator, entry_id, med_id),
         ]
     return [
-        MedicationOverdueSensor(coordinator, entry_id, med_id),
-        MedicationDueSoonSensor(coordinator, entry_id, med_id),
+        MedicationNextDoseSensor(coordinator, entry_id, med_id),
+        MedicationLastTakenSensor(coordinator, entry_id, med_id),
+        MedicationStreakSensor(coordinator, entry_id, med_id),
+        MedicationTakenTodaySensor(coordinator, entry_id, med_id),
     ]
 
 
 # ---------------------------------------------------------------------------
-# Base
+# Base entity
 # ---------------------------------------------------------------------------
 
 
-class MedicationBaseBinarySensor(CoordinatorEntity[MedicationCoordinator], BinarySensorEntity):
-    """Base binary sensor for medication tracking."""
+class MedicationBaseSensor(CoordinatorEntity[MedicationCoordinator], SensorEntity):
+    """Base class for medication sensors."""
 
     _attr_has_entity_name = True
 
@@ -125,111 +143,188 @@ class MedicationBaseBinarySensor(CoordinatorEntity[MedicationCoordinator], Binar
 
 
 # ---------------------------------------------------------------------------
-# Overdue sensor
+# Next dose sensor
 # ---------------------------------------------------------------------------
 
 
-class MedicationOverdueSensor(MedicationBaseBinarySensor):
-    """Binary sensor: True when a dose is overdue (past scheduled time + grace)."""
+class MedicationNextDoseSensor(MedicationBaseSensor):
+    """Sensor showing the next scheduled dose time."""
 
-    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_translation_key = "next_dose"
 
     def __init__(
         self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
     ) -> None:
-        super().__init__(coordinator, entry_id, med_id, SUFFIX_OVERDUE)
+        super().__init__(coordinator, entry_id, med_id, SUFFIX_NEXT_DOSE)
 
     @property
     def name(self) -> str:
-        return "Overdue"
+        return "Next Dose"
 
     @property
-    def is_on(self) -> bool:
-        return bool(self._state_data.get("is_overdue", False))
-
-    @property
-    def icon(self) -> str:
-        return "mdi:pill-off" if self.is_on else "mdi:pill"
+    def native_value(self) -> datetime | None:
+        next_dose_str = self._state_data.get(ATTR_NEXT_DOSE)
+        if next_dose_str:
+            return dt_util.parse_datetime(next_dose_str)
+        return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         data = self._state_data
         return {
-            "overdue_since": data.get("overdue_since"),
-            ATTR_DOSE: data.get(ATTR_DOSE, ""),
             ATTR_TIMES: data.get(ATTR_TIMES, []),
+            ATTR_SCHEDULED_TIME: data.get("next_dose_time"),
+            ATTR_DOSE: data.get(ATTR_DOSE, ""),
             ATTR_NOTES: data.get(ATTR_NOTES, ""),
         }
 
 
 # ---------------------------------------------------------------------------
-# Due soon sensor
+# Last taken sensor
 # ---------------------------------------------------------------------------
 
 
-class MedicationDueSoonSensor(MedicationBaseBinarySensor):
-    """Binary sensor: True when the next dose is within 60 minutes."""
+class MedicationLastTakenSensor(MedicationBaseSensor):
+    """Sensor showing when the medication was last taken."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_translation_key = "last_taken"
 
     def __init__(
         self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
     ) -> None:
-        super().__init__(coordinator, entry_id, med_id, SUFFIX_DUE)
+        super().__init__(coordinator, entry_id, med_id, SUFFIX_LAST_TAKEN)
 
     @property
     def name(self) -> str:
-        return "Due Soon"
+        return "Last Taken"
 
     @property
-    def is_on(self) -> bool:
-        return bool(self._state_data.get("is_due_soon", False))
-
-    @property
-    def icon(self) -> str:
-        return "mdi:bell-ring" if self.is_on else "mdi:bell-outline"
+    def native_value(self) -> datetime | None:
+        last_taken_str = self._state_data.get(ATTR_LAST_TAKEN)
+        if last_taken_str:
+            return dt_util.parse_datetime(last_taken_str)
+        return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         data = self._state_data
         return {
-            ATTR_NEXT_DOSE: data.get(ATTR_NEXT_DOSE),
-            "next_dose_time": data.get("next_dose_time"),
+            ATTR_TAKEN_TODAY: data.get(ATTR_TAKEN_TODAY, 0),
+            ATTR_SKIPPED_TODAY: data.get(ATTR_SKIPPED_TODAY, 0),
             ATTR_DOSE: data.get(ATTR_DOSE, ""),
         }
 
 
 # ---------------------------------------------------------------------------
-# PRN: Available binary sensor
+# Streak sensor
 # ---------------------------------------------------------------------------
 
 
-class MedicationAvailableSensor(MedicationBaseBinarySensor):
-    """Binary sensor: True when a PRN medication is available to take."""
+class MedicationStreakSensor(MedicationBaseSensor):
+    """Sensor showing consecutive days with at least one dose taken."""
 
-    _attr_device_class = BinarySensorDeviceClass.RUNNING
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = "days"
+    _attr_translation_key = "streak"
 
     def __init__(
         self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
     ) -> None:
-        super().__init__(coordinator, entry_id, med_id, SUFFIX_AVAILABLE)
+        super().__init__(coordinator, entry_id, med_id, SUFFIX_STREAK)
 
     @property
     def name(self) -> str:
-        return "Available"
+        return "Streak"
 
     @property
-    def is_on(self) -> bool:
-        return bool(self._state_data.get("is_available", True))
+    def native_value(self) -> int:
+        return self._state_data.get(ATTR_STREAK, 0)
 
     @property
     def icon(self) -> str:
-        return "mdi:pill" if self.is_on else "mdi:pill-off"
+        streak = self.native_value
+        if streak >= 30:
+            return "mdi:fire-circle"
+        if streak >= 7:
+            return "mdi:fire"
+        return "mdi:pill"
+
+
+# ---------------------------------------------------------------------------
+# Taken today sensor
+# ---------------------------------------------------------------------------
+
+
+class MedicationTakenTodaySensor(MedicationBaseSensor):
+    """Sensor showing how many doses have been taken today."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "doses"
+    _attr_icon = "mdi:pill-multiple"
+    _attr_translation_key = "taken_today"
+
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
+        super().__init__(coordinator, entry_id, med_id, SUFFIX_TAKEN_TODAY)
+
+    @property
+    def name(self) -> str:
+        return "Taken Today"
+
+    @property
+    def native_value(self) -> int:
+        return self._state_data.get(ATTR_TAKEN_TODAY, 0)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         data = self._state_data
         return {
-            "next_available": data.get("next_available"),
+            "doses_scheduled_today": data.get("doses_scheduled_today", 0),
+            ATTR_SKIPPED_TODAY: data.get(ATTR_SKIPPED_TODAY, 0),
+            "scheduled_today": data.get("scheduled_today", True),
+        }
+
+
+# ---------------------------------------------------------------------------
+# PRN: Next available sensor
+# ---------------------------------------------------------------------------
+
+
+class MedicationNextAvailableSensor(MedicationBaseSensor):
+    """Sensor showing when a PRN medication can next be taken."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_translation_key = "next_available"
+
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
+        super().__init__(coordinator, entry_id, med_id, SUFFIX_NEXT_AVAILABLE)
+
+    @property
+    def name(self) -> str:
+        return "Next Available"
+
+    @property
+    def native_value(self) -> datetime | None:
+        next_available_str = self._state_data.get("next_available")
+        if next_available_str:
+            return dt_util.parse_datetime(next_available_str)
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._state_data
+        return {
+            "is_available": data.get("is_available", True),
             "doses_taken_today": data.get("doses_taken_today", 0),
             "doses_taken_24h": data.get("doses_taken_24h", 0),
+            "as_needed_max_per_day": data.get("as_needed_max_per_day"),
+            "as_needed_max_per_24h": data.get("as_needed_max_per_24h"),
+            "as_needed_min_hours": data.get("as_needed_min_hours"),
             ATTR_DOSE: data.get(ATTR_DOSE, ""),
+            ATTR_NOTES: data.get(ATTR_NOTES, ""),
         }

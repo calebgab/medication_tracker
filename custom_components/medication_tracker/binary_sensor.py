@@ -20,7 +20,7 @@ from .const import (
     ATTR_NOTES,
     ATTR_TIMES,
     DOMAIN,
-    MED_TYPE_PRN,
+    MED_TYPE_AS_NEEDED,
     SUFFIX_AVAILABLE,
     SUFFIX_DUE,
     SUFFIX_OVERDUE,
@@ -70,7 +70,7 @@ def _binary_sensors_for_med(
 ) -> list[BinarySensorEntity]:
     _tracked_med_ids.setdefault(entry_id, set()).add(med_id)
     med = coordinator.get_medication(med_id)
-    if med and med.get("med_type") == MED_TYPE_PRN:
+    if med and med.get("med_type") == MED_TYPE_AS_NEEDED:
         return [
             MedicationAvailableSensor(coordinator, entry_id, med_id),
         ]
