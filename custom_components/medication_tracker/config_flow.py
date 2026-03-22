@@ -11,6 +11,9 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.core import callback
 
 from .const import (
+    CONF_AS_NEEDED_MAX_PER_24H,
+    CONF_AS_NEEDED_MAX_PER_DAY,
+    CONF_AS_NEEDED_MIN_HOURS,
     CONF_MED_DAYS,
     CONF_MED_DOSE,
     CONF_MED_NAME,
@@ -18,14 +21,6 @@ from .const import (
     CONF_MED_TIMES,
     CONF_MED_TYPE,
     CONF_MEDICATIONS,
-    CONF_AS_NEEDED_MAX_PER_24H,
-    CONF_AS_NEEDED_MAX_PER_DAY,
-    CONF_AS_NEEDED_MIN_HOURS,
-    DEFAULT_AS_NEEDED_MAX_PER_24H,
-    DEFAULT_AS_NEEDED_MAX_PER_DAY,
-    DEFAULT_AS_NEEDED_MIN_HOURS,
-    MED_TYPE_AS_NEEDED,
-    MED_TYPE_SCHEDULED,
     CONF_NOTIF_DUE_SOON_ENABLED,
     CONF_NOTIF_DUE_SOON_MESSAGE,
     CONF_NOTIF_DUE_SOON_TITLE,
@@ -41,6 +36,9 @@ from .const import (
     CONF_NOTIF_TAKEN_MESSAGE,
     CONF_NOTIF_TAKEN_TITLE,
     CONF_NOTIF_TARGET,
+    DEFAULT_AS_NEEDED_MAX_PER_24H,
+    DEFAULT_AS_NEEDED_MAX_PER_DAY,
+    DEFAULT_AS_NEEDED_MIN_HOURS,
     DEFAULT_DUE_SOON_MESSAGE,
     DEFAULT_DUE_SOON_TITLE,
     DEFAULT_NOTIFY_TARGET,
@@ -50,6 +48,8 @@ from .const import (
     DEFAULT_TAKEN_MESSAGE,
     DEFAULT_TAKEN_TITLE,
     DOMAIN,
+    MED_TYPE_AS_NEEDED,
+    MED_TYPE_SCHEDULED,
 )
 
 _TIME_PATTERN = re.compile(r"^\d{2}:\d{2}$")
@@ -91,10 +91,8 @@ def _get_notify_services(hass: Any) -> dict[str, str]:
     for service_name in sorted(notify_services):
         if service_name.startswith("mobile_app_"):
             full_name = f"notify.{service_name}"
-            # Make a friendlier label by stripping the prefix and replacing underscores
             label = service_name.replace("mobile_app_", "").replace("_", " ").title()
             services[full_name] = label
-    # Always include persistent_notification as a fallback option
     services[DEFAULT_NOTIFY_TARGET] = "Persistent notification (HA bell)"
     return services
 
@@ -192,12 +190,44 @@ class MedicationOptionsFlow(OptionsFlow):
         )
 
     # ------------------------------------------------------------------
-    # Medication: add
+    # Medication: add — step 1 (name, dose, type, notes)
     # ------------------------------------------------------------------
 
     async def async_step_add_medication(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Step 1: pick name, dose, type, and notes."""
+        if user_input is not None:
+            self._add_med_base = user_input
+            if user_input.get(CONF_MED_TYPE) == MED_TYPE_AS_NEEDED:
+                return await self.async_step_add_medication_as_needed()
+            return await self.async_step_add_medication_scheduled()
+
+        return self.async_show_form(
+            step_id="add_medication",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_MED_NAME): str,
+                    vol.Optional(CONF_MED_DOSE, default=""): str,
+                    vol.Required(CONF_MED_TYPE, default=MED_TYPE_SCHEDULED): vol.In(
+                        {
+                            MED_TYPE_SCHEDULED: "Scheduled (regular times)",
+                            MED_TYPE_AS_NEEDED: "As-needed",
+                        }
+                    ),
+                    vol.Optional(CONF_MED_NOTES, default=""): str,
+                }
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # Medication: add — step 2a (scheduled times + days)
+    # ------------------------------------------------------------------
+
+    async def async_step_add_medication_scheduled(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2a: scheduled times and days."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -214,34 +244,61 @@ class MedicationOptionsFlow(OptionsFlow):
                 days = []
 
             if not errors:
+                base = self._add_med_base or {}
                 coordinator = self._entry.runtime_data
                 await coordinator.async_add_medication(
                     {
-                        "name": user_input[CONF_MED_NAME],
-                        "dose": user_input.get(CONF_MED_DOSE, ""),
-                        "med_type": user_input.get(CONF_MED_TYPE, MED_TYPE_SCHEDULED),
+                        "name": base[CONF_MED_NAME],
+                        "dose": base.get(CONF_MED_DOSE, ""),
+                        "med_type": MED_TYPE_SCHEDULED,
                         "times": times,
                         "days": days,
-                        "notes": user_input.get(CONF_MED_NOTES, ""),
-                        "as_needed_max_per_day": user_input.get(CONF_AS_NEEDED_MAX_PER_DAY, DEFAULT_AS_NEEDED_MAX_PER_DAY),
-                        "as_needed_max_per_24h": user_input.get(CONF_AS_NEEDED_MAX_PER_24H, DEFAULT_AS_NEEDED_MAX_PER_24H),
-                        "as_needed_min_hours": user_input.get(CONF_AS_NEEDED_MIN_HOURS, DEFAULT_AS_NEEDED_MIN_HOURS),
+                        "notes": base.get(CONF_MED_NOTES, ""),
                     }
                 )
                 return await self.async_step_init()
 
         return self.async_show_form(
-            step_id="add_medication",
+            step_id="add_medication_scheduled",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_MED_NAME): str,
-                    vol.Optional(CONF_MED_DOSE, default=""): str,
-                    vol.Required(CONF_MED_TYPE, default=MED_TYPE_SCHEDULED): vol.In(
-                        {MED_TYPE_SCHEDULED: "Scheduled (regular times)", MED_TYPE_AS_NEEDED: "As-needed"}
-                    ),
                     vol.Optional(CONF_MED_TIMES, default=""): str,
                     vol.Optional(CONF_MED_DAYS, default=""): str,
-                    vol.Optional(CONF_MED_NOTES, default=""): str,
+                }
+            ),
+            errors=errors,
+        )
+
+    # ------------------------------------------------------------------
+    # Medication: add — step 2b (as-needed limits)
+    # ------------------------------------------------------------------
+
+    async def async_step_add_medication_as_needed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2b: as-needed dosing limits."""
+        if user_input is not None:
+            base = self._add_med_base or {}
+            coordinator = self._entry.runtime_data
+            await coordinator.async_add_medication(
+                {
+                    "name": base[CONF_MED_NAME],
+                    "dose": base.get(CONF_MED_DOSE, ""),
+                    "med_type": MED_TYPE_AS_NEEDED,
+                    "times": [],
+                    "days": [],
+                    "notes": base.get(CONF_MED_NOTES, ""),
+                    "as_needed_max_per_day": user_input.get(CONF_AS_NEEDED_MAX_PER_DAY, DEFAULT_AS_NEEDED_MAX_PER_DAY),
+                    "as_needed_max_per_24h": user_input.get(CONF_AS_NEEDED_MAX_PER_24H, DEFAULT_AS_NEEDED_MAX_PER_24H),
+                    "as_needed_min_hours": user_input.get(CONF_AS_NEEDED_MIN_HOURS, DEFAULT_AS_NEEDED_MIN_HOURS),
+                }
+            )
+            return await self.async_step_init()
+
+        return self.async_show_form(
+            step_id="add_medication_as_needed",
+            data_schema=vol.Schema(
+                {
                     vol.Optional(CONF_AS_NEEDED_MAX_PER_DAY, default=DEFAULT_AS_NEEDED_MAX_PER_DAY): vol.All(
                         vol.Coerce(int), vol.Range(min=1, max=24)
                     ),
@@ -253,16 +310,53 @@ class MedicationOptionsFlow(OptionsFlow):
                     ),
                 }
             ),
-            errors=errors,
         )
 
     # ------------------------------------------------------------------
-    # Medication: edit
+    # Medication: edit — step 1 (name, dose, type, notes)
     # ------------------------------------------------------------------
 
     async def async_step_edit_medication(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Step 1: edit name, dose, type, notes."""
+        coordinator = self._entry.runtime_data
+        med = coordinator.get_medication(self._edit_id or "")
+
+        if med is None:
+            return await self.async_step_init()
+
+        if user_input is not None:
+            self._edit_med_base = user_input
+            if user_input.get(CONF_MED_TYPE) == MED_TYPE_AS_NEEDED:
+                return await self.async_step_edit_medication_as_needed()
+            return await self.async_step_edit_medication_scheduled()
+
+        return self.async_show_form(
+            step_id="edit_medication",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_MED_NAME, default=med["name"]): str,
+                    vol.Optional(CONF_MED_DOSE, default=med.get("dose", "")): str,
+                    vol.Required(CONF_MED_TYPE, default=med.get("med_type", MED_TYPE_SCHEDULED)): vol.In(
+                        {
+                            MED_TYPE_SCHEDULED: "Scheduled (regular times)",
+                            MED_TYPE_AS_NEEDED: "As-needed",
+                        }
+                    ),
+                    vol.Optional(CONF_MED_NOTES, default=med.get("notes", "")): str,
+                }
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # Medication: edit — step 2a (scheduled times + days)
+    # ------------------------------------------------------------------
+
+    async def async_step_edit_medication_scheduled(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2a: edit scheduled times and days."""
         errors: dict[str, str] = {}
         coordinator = self._entry.runtime_data
         med = coordinator.get_medication(self._edit_id or "")
@@ -284,18 +378,16 @@ class MedicationOptionsFlow(OptionsFlow):
                 days = []
 
             if not errors:
+                base = self._edit_med_base or {}
                 await coordinator.async_update_medication(
                     self._edit_id,  # type: ignore[arg-type]
                     {
-                        "name": user_input[CONF_MED_NAME],
-                        "dose": user_input.get(CONF_MED_DOSE, ""),
-                        "med_type": user_input.get(CONF_MED_TYPE, MED_TYPE_SCHEDULED),
+                        "name": base[CONF_MED_NAME],
+                        "dose": base.get(CONF_MED_DOSE, ""),
+                        "med_type": MED_TYPE_SCHEDULED,
                         "times": times,
                         "days": days,
-                        "notes": user_input.get(CONF_MED_NOTES, ""),
-                        "as_needed_max_per_day": user_input.get(CONF_AS_NEEDED_MAX_PER_DAY, DEFAULT_AS_NEEDED_MAX_PER_DAY),
-                        "as_needed_max_per_24h": user_input.get(CONF_AS_NEEDED_MAX_PER_24H, DEFAULT_AS_NEEDED_MAX_PER_24H),
-                        "as_needed_min_hours": user_input.get(CONF_AS_NEEDED_MIN_HOURS, DEFAULT_AS_NEEDED_MIN_HOURS),
+                        "notes": base.get(CONF_MED_NOTES, ""),
                     },
                 )
                 return await self.async_step_init()
@@ -305,17 +397,52 @@ class MedicationOptionsFlow(OptionsFlow):
         days_str = ", ".join(day_names[d] for d in med.get("days", []))
 
         return self.async_show_form(
-            step_id="edit_medication",
+            step_id="edit_medication_scheduled",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_MED_NAME, default=med["name"]): str,
-                    vol.Optional(CONF_MED_DOSE, default=med.get("dose", "")): str,
-                    vol.Required(CONF_MED_TYPE, default=med.get("med_type", MED_TYPE_SCHEDULED)): vol.In(
-                        {MED_TYPE_SCHEDULED: "Scheduled (regular times)", MED_TYPE_AS_NEEDED: "As-needed"}
-                    ),
                     vol.Optional(CONF_MED_TIMES, default=times_str): str,
                     vol.Optional(CONF_MED_DAYS, default=days_str): str,
-                    vol.Optional(CONF_MED_NOTES, default=med.get("notes", "")): str,
+                }
+            ),
+            errors=errors,
+        )
+
+    # ------------------------------------------------------------------
+    # Medication: edit — step 2b (as-needed limits)
+    # ------------------------------------------------------------------
+
+    async def async_step_edit_medication_as_needed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2b: edit as-needed dosing limits."""
+        coordinator = self._entry.runtime_data
+        med = coordinator.get_medication(self._edit_id or "")
+
+        if med is None:
+            return await self.async_step_init()
+
+        if user_input is not None:
+            base = self._edit_med_base or {}
+            await coordinator.async_update_medication(
+                self._edit_id,  # type: ignore[arg-type]
+                {
+                    "name": base[CONF_MED_NAME],
+                    "dose": base.get(CONF_MED_DOSE, ""),
+                    "med_type": MED_TYPE_AS_NEEDED,
+                    "times": [],
+                    "days": [],
+                    "notes": base.get(CONF_MED_NOTES, ""),
+                    "as_needed_max_per_day": user_input.get(CONF_AS_NEEDED_MAX_PER_DAY, DEFAULT_AS_NEEDED_MAX_PER_DAY),
+                    "as_needed_max_per_24h": user_input.get(CONF_AS_NEEDED_MAX_PER_24H, DEFAULT_AS_NEEDED_MAX_PER_24H),
+                    "as_needed_min_hours": user_input.get(CONF_AS_NEEDED_MIN_HOURS, DEFAULT_AS_NEEDED_MIN_HOURS),
+                },
+            )
+            return await self.async_step_init()
+
+        return self.async_show_form(
+            step_id="edit_medication_as_needed",
+            data_schema=vol.Schema(
+                {
                     vol.Optional(CONF_AS_NEEDED_MAX_PER_DAY, default=med.get("as_needed_max_per_day", DEFAULT_AS_NEEDED_MAX_PER_DAY)): vol.All(
                         vol.Coerce(int), vol.Range(min=1, max=24)
                     ),
@@ -327,7 +454,6 @@ class MedicationOptionsFlow(OptionsFlow):
                     ),
                 }
             ),
-            errors=errors,
         )
 
     # ------------------------------------------------------------------
@@ -403,7 +529,6 @@ class MedicationOptionsFlow(OptionsFlow):
             )
             return await self.async_step_init()
 
-        # Current target — ensure it's in the list even if services changed
         current_target = cfg.get(CONF_NOTIF_TARGET, DEFAULT_NOTIFY_TARGET)
         if current_target not in notify_services:
             notify_services[current_target] = current_target
