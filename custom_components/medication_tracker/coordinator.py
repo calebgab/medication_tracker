@@ -8,6 +8,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -163,16 +164,22 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._dose_log.pop(med_id, None)
             await self._async_save()
             # Remove all entities associated with this medication from the registry
-            registry = er.async_get(self.hass)
-            device_id = f"{self.entry_id}_{med_id}"
+            entity_registry = er.async_get(self.hass)
             entries_to_remove = [
                 entry for entry in er.async_entries_for_config_entry(
-                    registry, self.entry_id
+                    entity_registry, self.entry_id
                 )
                 if entry.unique_id.startswith(f"{self.entry_id}_{med_id}_")
             ]
             for entry in entries_to_remove:
-                registry.async_remove(entry.entity_id)
+                entity_registry.async_remove(entry.entity_id)
+            # Remove the device itself
+            device_registry = dr.async_get(self.hass)
+            device = device_registry.async_get_device(
+                identifiers={(DOMAIN, f"{self.entry_id}_{med_id}")}
+            )
+            if device:
+                device_registry.async_remove_device(device.id)
             await self.async_refresh()
             return True
         return False
