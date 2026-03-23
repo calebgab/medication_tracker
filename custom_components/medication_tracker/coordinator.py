@@ -175,9 +175,15 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 entity_registry.async_remove(entry.entity_id)
             # Remove the device itself
             device_registry = dr.async_get(self.hass)
+            # Try direct identifier lookup first, then fall back to scanning
             device = device_registry.async_get_device(
                 identifiers={(DOMAIN, f"{self.entry_id}_{med_id}")}
             )
+            if not device:
+                for dev in dr.async_entries_for_config_entry(device_registry, self.entry_id):
+                    if any(med_id in str(ident) for ident in dev.identifiers):
+                        device = dev
+                        break
             if device:
                 device_registry.async_remove_device(device.id)
             await self.async_refresh()
