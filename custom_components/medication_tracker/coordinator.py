@@ -70,6 +70,21 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._medications = []
             self._dose_log = {}
             self._notification_config = {}
+        await self._async_cleanup_orphaned_devices()
+
+    async def _async_cleanup_orphaned_devices(self) -> None:
+        """Remove devices that no longer have a corresponding medication."""
+        device_registry = dr.async_get(self.hass)
+        valid_device_ids = {f"{self.entry_id}_{med['id']}" for med in self._medications}
+        for dev in dr.async_entries_for_config_entry(device_registry, self.entry_id):
+            # Check if this device corresponds to a known medication
+            dev_med_ids = {
+                ident[1] for ident in dev.identifiers
+                if ident[0] == DOMAIN
+            }
+            if not any(d in valid_device_ids for d in dev_med_ids):
+                _LOGGER.debug("Removing orphaned device %s", dev.name)
+                device_registry.async_remove_device(dev.id)
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Recalculate derived state for all medications, then check notifications."""
