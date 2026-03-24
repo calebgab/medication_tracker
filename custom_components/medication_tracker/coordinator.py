@@ -508,4 +508,4 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "dose_log": pruned_log,
                 CONF_NOTIFICATIONS: self._notification_config,
             }
-)
+        )
