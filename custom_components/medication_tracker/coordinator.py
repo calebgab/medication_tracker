@@ -60,9 +60,9 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if stored:
             self._medications = stored.get("medications", [])
             raw_log = stored.get("dose_log", {})
-            today_str = date.today().isoformat()
+            cutoff = (date.today() - timedelta(days=90)).isoformat()
             self._dose_log = {
-                med_id: [e for e in entries if e.get("date") == today_str]
+                med_id: [e for e in entries if e.get("date", "") >= cutoff]
                 for med_id, entries in raw_log.items()
             }
             self._notification_config = stored.get(CONF_NOTIFICATIONS, {})
@@ -497,10 +497,15 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------------------
 
     async def _async_save(self) -> None:
+        cutoff = (date.today() - timedelta(days=90)).isoformat()
+        pruned_log = {
+            med_id: [e for e in entries if e.get("date", "") >= cutoff]
+            for med_id, entries in self._dose_log.items()
+        }
         await self._store.async_save(
             {
                 "medications": self._medications,
-                "dose_log": self._dose_log,
+                "dose_log": pruned_log,
                 CONF_NOTIFICATIONS: self._notification_config,
             }
-        )
+    )
