@@ -51,11 +51,20 @@
         "description": "Configure when and how you are notified about medications.",
         "data": {
           "notify_target": "Notify service (e.g. notify.persistent_notification)",
+          "due_enabled": "Alert when a dose is due",
           "overdue_enabled": "Alert when a dose is overdue",
           "overdue_delay_minutes": "Overdue alert delay (minutes after grace period, 0 = immediate)",
           "due_soon_enabled": "Alert when a dose is due soon",
           "taken_enabled": "Confirm when a dose is marked taken",
           "action": "Next"
+        }
+      },
+      "notification_due_message": {
+        "title": "Due now message template",
+        "description": "Customise the message sent when a dose is due.",
+        "data": {
+          "due_title": "Notification title",
+          "due_message": "Notification message"
         }
       },
       "notification_overdue_message": {
@@ -93,6 +102,7 @@
         "title": "Overrides for {medication}",
         "description": "Toggle notifications for this medication. These override the global settings above.",
         "data": {
+          "override_due": "Alert when due",
           "override_overdue": "Alert when overdue",
           "override_due_soon": "Alert when due soon",
           "override_taken": "Confirm when taken"

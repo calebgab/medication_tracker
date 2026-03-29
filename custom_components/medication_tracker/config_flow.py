@@ -21,13 +21,17 @@ from .const import (
     CONF_MED_TIMES,
     CONF_MED_TYPE,
     CONF_MEDICATIONS,
+    CONF_NOTIF_DUE_ENABLED,
+    CONF_NOTIF_DUE_MESSAGE,
     CONF_NOTIF_DUE_SOON_ENABLED,
     CONF_NOTIF_DUE_SOON_MESSAGE,
     CONF_NOTIF_DUE_SOON_TITLE,
+    CONF_NOTIF_DUE_TITLE,
     CONF_NOTIF_OVERDUE_DELAY,
     CONF_NOTIF_OVERDUE_ENABLED,
     CONF_NOTIF_OVERDUE_MESSAGE,
     CONF_NOTIF_OVERDUE_TITLE,
+    CONF_NOTIF_OVERRIDE_DUE,
     CONF_NOTIF_OVERRIDE_DUE_SOON,
     CONF_NOTIF_OVERRIDE_OVERDUE,
     CONF_NOTIF_OVERRIDE_TAKEN,
@@ -39,8 +43,10 @@ from .const import (
     DEFAULT_AS_NEEDED_MAX_PER_24H,
     DEFAULT_AS_NEEDED_MAX_PER_DAY,
     DEFAULT_AS_NEEDED_MIN_HOURS,
+    DEFAULT_DUE_MESSAGE,
     DEFAULT_DUE_SOON_MESSAGE,
     DEFAULT_DUE_SOON_TITLE,
+    DEFAULT_DUE_TITLE,
     DEFAULT_NOTIFY_TARGET,
     DEFAULT_OVERDUE_DELAY,
     DEFAULT_OVERDUE_MESSAGE,
@@ -500,6 +506,12 @@ class MedicationOptionsFlow(OptionsFlow):
         if user_input is not None:
             action = user_input.get("action", "save")
 
+            if action == "edit_due_message":
+                await coordinator.async_update_notification_config(
+                    _notification_config_from_input(user_input, cfg)
+                )
+                return await self.async_step_notification_due_message()
+
             if action == "edit_overdue_message":
                 await coordinator.async_update_notification_config(
                     _notification_config_from_input(user_input, cfg)
@@ -535,6 +547,7 @@ class MedicationOptionsFlow(OptionsFlow):
 
         action_labels = {
             "save": "Save and go back",
+            "edit_due_message": "Edit due now message template",
             "edit_overdue_message": "Edit overdue message template",
             "edit_due_soon_message": "Edit due soon message template",
             "edit_taken_message": "Edit taken confirmation message",
@@ -549,6 +562,10 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_TARGET,
                         default=current_target,
                     ): vol.In(notify_services),
+                    vol.Optional(
+                        CONF_NOTIF_DUE_ENABLED,
+                        default=cfg.get(CONF_NOTIF_DUE_ENABLED, True),
+                    ): bool,
                     vol.Optional(
                         CONF_NOTIF_OVERDUE_ENABLED,
                         default=cfg.get(CONF_NOTIF_OVERDUE_ENABLED, False),
@@ -566,6 +583,45 @@ class MedicationOptionsFlow(OptionsFlow):
                         default=cfg.get(CONF_NOTIF_TAKEN_ENABLED, False),
                     ): bool,
                     vol.Required("action", default="save"): vol.In(action_labels),
+                }
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # Notifications: due now message template
+    # ------------------------------------------------------------------
+
+    async def async_step_notification_due_message(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        coordinator = self._entry.runtime_data
+        cfg = coordinator.notification_config
+
+        if user_input is not None:
+            updated = {
+                **cfg,
+                CONF_NOTIF_DUE_TITLE: user_input.get(
+                    CONF_NOTIF_DUE_TITLE, DEFAULT_DUE_TITLE
+                ),
+                CONF_NOTIF_DUE_MESSAGE: user_input.get(
+                    CONF_NOTIF_DUE_MESSAGE, DEFAULT_DUE_MESSAGE
+                ),
+            }
+            await coordinator.async_update_notification_config(updated)
+            return await self.async_step_notifications()
+
+        return self.async_show_form(
+            step_id="notification_due_message",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_NOTIF_DUE_TITLE,
+                        default=cfg.get(CONF_NOTIF_DUE_TITLE, DEFAULT_DUE_TITLE),
+                    ): str,
+                    vol.Optional(
+                        CONF_NOTIF_DUE_MESSAGE,
+                        default=cfg.get(CONF_NOTIF_DUE_MESSAGE, DEFAULT_DUE_MESSAGE),
+                    ): str,
                 }
             ),
         )
@@ -733,14 +789,18 @@ class MedicationOptionsFlow(OptionsFlow):
 
         if user_input is not None:
             overrides: dict[str, Any] = {}
+            global_due = cfg.get(CONF_NOTIF_DUE_ENABLED, True)
             global_overdue = cfg.get(CONF_NOTIF_OVERDUE_ENABLED, False)
             global_due_soon = cfg.get(CONF_NOTIF_DUE_SOON_ENABLED, False)
             global_taken = cfg.get(CONF_NOTIF_TAKEN_ENABLED, False)
 
+            val_due = user_input.get(CONF_NOTIF_OVERRIDE_DUE)
             val_overdue = user_input.get(CONF_NOTIF_OVERRIDE_OVERDUE)
             val_due_soon = user_input.get(CONF_NOTIF_OVERRIDE_DUE_SOON)
             val_taken = user_input.get(CONF_NOTIF_OVERRIDE_TAKEN)
 
+            if val_due is not None and val_due != global_due:
+                overrides[CONF_NOTIF_OVERRIDE_DUE] = val_due
             if val_overdue is not None and val_overdue != global_overdue:
                 overrides[CONF_NOTIF_OVERRIDE_OVERDUE] = val_overdue
             if val_due_soon is not None and val_due_soon != global_due_soon:
@@ -754,6 +814,7 @@ class MedicationOptionsFlow(OptionsFlow):
             )
             return await self.async_step_notifications()
 
+        global_due = cfg.get(CONF_NOTIF_DUE_ENABLED, True)
         global_overdue = cfg.get(CONF_NOTIF_OVERDUE_ENABLED, False)
         global_due_soon = cfg.get(CONF_NOTIF_DUE_SOON_ENABLED, False)
         global_taken = cfg.get(CONF_NOTIF_TAKEN_ENABLED, False)
@@ -762,6 +823,10 @@ class MedicationOptionsFlow(OptionsFlow):
             step_id="notification_med_overrides",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(
+                        CONF_NOTIF_OVERRIDE_DUE,
+                        default=existing.get(CONF_NOTIF_OVERRIDE_DUE, global_due),
+                    ): bool,
                     vol.Optional(
                         CONF_NOTIF_OVERRIDE_OVERDUE,
                         default=existing.get(CONF_NOTIF_OVERRIDE_OVERDUE, global_overdue),
@@ -793,6 +858,9 @@ def _notification_config_from_input(
         **existing,
         CONF_NOTIF_TARGET: user_input.get(
             CONF_NOTIF_TARGET, existing.get(CONF_NOTIF_TARGET, DEFAULT_NOTIFY_TARGET)
+        ),
+        CONF_NOTIF_DUE_ENABLED: user_input.get(
+            CONF_NOTIF_DUE_ENABLED, existing.get(CONF_NOTIF_DUE_ENABLED, True)
         ),
         CONF_NOTIF_OVERDUE_ENABLED: user_input.get(
             CONF_NOTIF_OVERDUE_ENABLED, existing.get(CONF_NOTIF_OVERDUE_ENABLED, False)

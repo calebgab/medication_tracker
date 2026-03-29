@@ -89,12 +89,16 @@ CONF_NOTIF_DUE_SOON_MESSAGE = "due_soon_message"
 CONF_NOTIF_TAKEN_ENABLED = "taken_enabled"
 CONF_NOTIF_TAKEN_TITLE = "taken_title"
 CONF_NOTIF_TAKEN_MESSAGE = "taken_message"
+CONF_NOTIF_DUE_ENABLED = "due_enabled"
+CONF_NOTIF_DUE_TITLE = "due_title"
+CONF_NOTIF_DUE_MESSAGE = "due_message"
 
 # Per-medication override keys
 CONF_NOTIF_OVERRIDES = "notification_overrides"
 CONF_NOTIF_OVERRIDE_OVERDUE = "override_overdue"
 CONF_NOTIF_OVERRIDE_DUE_SOON = "override_due_soon"
 CONF_NOTIF_OVERRIDE_TAKEN = "override_taken"
+CONF_NOTIF_OVERRIDE_DUE = "override_due"
 
 # Default notify target
 DEFAULT_NOTIFY_TARGET = "notify.persistent_notification"
@@ -108,3 +112,5 @@ DEFAULT_DUE_SOON_TITLE = "{medication} due soon"
 DEFAULT_DUE_SOON_MESSAGE = "{medication} ({dose}) is due at {time}."
 DEFAULT_TAKEN_TITLE = "{medication} taken"
 DEFAULT_TAKEN_MESSAGE = "{medication} ({dose}) has been marked as taken."
+DEFAULT_DUE_TITLE = "{medication} due now"
+DEFAULT_DUE_MESSAGE = "{medication} ({dose}) is due now."

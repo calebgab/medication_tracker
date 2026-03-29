@@ -12,13 +12,17 @@ from homeassistant.helpers.event import async_call_later
 
 from .const import (
     MED_TYPE_AS_NEEDED,
+    CONF_NOTIF_DUE_ENABLED,
+    CONF_NOTIF_DUE_MESSAGE,
     CONF_NOTIF_DUE_SOON_ENABLED,
     CONF_NOTIF_DUE_SOON_MESSAGE,
     CONF_NOTIF_DUE_SOON_TITLE,
+    CONF_NOTIF_DUE_TITLE,
     CONF_NOTIF_OVERDUE_DELAY,
     CONF_NOTIF_OVERDUE_ENABLED,
     CONF_NOTIF_OVERDUE_MESSAGE,
     CONF_NOTIF_OVERDUE_TITLE,
+    CONF_NOTIF_OVERRIDE_DUE,
     CONF_NOTIF_OVERRIDE_DUE_SOON,
     CONF_NOTIF_OVERRIDE_OVERDUE,
     CONF_NOTIF_OVERRIDE_TAKEN,
@@ -27,8 +31,10 @@ from .const import (
     CONF_NOTIF_TAKEN_MESSAGE,
     CONF_NOTIF_TAKEN_TITLE,
     CONF_NOTIF_TARGET,
+    DEFAULT_DUE_MESSAGE,
     DEFAULT_DUE_SOON_MESSAGE,
     DEFAULT_DUE_SOON_TITLE,
+    DEFAULT_DUE_TITLE,
     DEFAULT_NOTIFY_TARGET,
     DEFAULT_OVERDUE_DELAY,
     DEFAULT_OVERDUE_MESSAGE,
@@ -134,6 +140,13 @@ class MedicationNotifier:
                         scheduled_time = overdue_dt.strftime("%H:%M")
                     except (ValueError, KeyError):
                         pass
+                elif state.get("is_due_now") and state.get("due_at_time"):
+                    # Due now — extract the time from due_at_time
+                    try:
+                        due_dt = datetime.fromisoformat(state["due_at_time"])
+                        scheduled_time = due_dt.strftime("%H:%M")
+                    except (ValueError, KeyError):
+                        pass
                 elif state.get("is_due_soon") and state.get("next_dose_time"):
                     # Due soon — use the upcoming scheduled slot time
                     scheduled_time = state.get("next_dose_time")
@@ -199,6 +212,7 @@ class MedicationNotifier:
             med_id = med["id"]
             state = self._coordinator.get_med_state(med_id)
             overrides = med.get(CONF_NOTIF_OVERRIDES, {})
+            await self._check_due(med, state, notif_config, overrides)
             await self._check_overdue(med, state, notif_config, overrides)
             await self._check_due_soon(med, state, notif_config, overrides)
 
@@ -238,6 +252,48 @@ class MedicationNotifier:
     # ------------------------------------------------------------------
     # Internal checkers
     # ------------------------------------------------------------------
+
+    async def _check_due(
+        self,
+        med: dict[str, Any],
+        state: dict[str, Any],
+        notif_config: dict[str, Any],
+        overrides: dict[str, Any],
+    ) -> None:
+        if not state.get("is_due_now"):
+            return
+
+        enabled = overrides.get(
+            CONF_NOTIF_OVERRIDE_DUE,
+            notif_config.get(CONF_NOTIF_DUE_ENABLED, True),
+        )
+        if not enabled:
+            _LOGGER.debug("Due now notification disabled for %s", med["name"])
+            return
+
+        due_at_time = state.get("due_at_time", "")
+        fire_key = f"{med['id']}_due_{due_at_time}"
+        if fire_key in self._fired:
+            _LOGGER.debug("Due now notification already fired for %s", med["name"])
+            return
+
+        _LOGGER.debug("Firing due now notification for %s", med["name"])
+        title = notif_config.get(CONF_NOTIF_DUE_TITLE, DEFAULT_DUE_TITLE)
+        message = notif_config.get(CONF_NOTIF_DUE_MESSAGE, DEFAULT_DUE_MESSAGE)
+        await self._send(
+            notif_config,
+            title,
+            message,
+            {
+                "medication": med["name"],
+                "dose": med.get("dose", ""),
+                "time": _format_time(due_at_time),
+                "overdue_since": "",
+            },
+            med_id=med["id"],
+            actionable=True,
+        )
+        self._fired.add(fire_key)
 
     async def _check_overdue(
         self,

@@ -342,6 +342,8 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         is_overdue = False
         overdue_since: str | None = None
+        is_due_now = False
+        due_at_time: str | None = None
         if scheduled_today:
             for t_str in sorted(scheduled_times):
                 try:
@@ -355,6 +357,12 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if not handled:
                         is_overdue = True
                         overdue_since = scheduled_dt.isoformat()
+                        break
+                elif scheduled_dt <= now:
+                    handled = any(e.get("scheduled_time") == t_str for e in today_entries)
+                    if not handled:
+                        is_due_now = True
+                        due_at_time = scheduled_dt.isoformat()
                         break
 
         is_due_soon = False
@@ -383,6 +391,8 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "doses_scheduled_today": len(scheduled_times) if scheduled_today else 0,
             "is_overdue": is_overdue,
             "overdue_since": overdue_since,
+            "is_due_now": is_due_now,
+            "due_at_time": due_at_time,
             "is_due_soon": is_due_soon,
             "next_dose": next_dose_dt.isoformat() if next_dose_dt else None,
             "next_dose_time": next_dose_time_str,
