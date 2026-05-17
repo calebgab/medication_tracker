@@ -298,17 +298,6 @@ Make sure the resource was added correctly (**Settings → Dashboards → Resour
 
 ---
 
-## Contributing
-
-PRs welcome. Please lint before submitting:
-
-```bash
-pip install ruff
-ruff check custom_components/
-```
-
----
-
 ## License
 
 MIT
