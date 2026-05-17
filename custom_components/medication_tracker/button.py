@@ -13,7 +13,7 @@ from .const import (
     SUFFIX_MARK_SKIPPED,
     SUFFIX_MARK_TAKEN,
 )
-from .coordinator import MedicationCoordinator
+from .coordinator import MedicationCoordinator, extract_scheduled_time
 
 
 async def async_setup_entry(
@@ -123,16 +123,8 @@ class MedicationMarkTakenButton(MedicationBaseButton):
     async def async_press(self) -> None:
         """Handle button press — mark dose taken with correct scheduled_time."""
         state = self._coordinator.get_med_state(self._med_id)
-        scheduled_time = None
-        if state.get("is_overdue") and state.get("overdue_since"):
-            try:
-                from datetime import datetime
-                overdue_dt = datetime.fromisoformat(state["overdue_since"])
-                scheduled_time = overdue_dt.strftime("%H:%M")
-            except (ValueError, KeyError):
-                pass
         await self._coordinator.async_mark_taken(
-            self._med_id, scheduled_time=scheduled_time
+            self._med_id, scheduled_time=extract_scheduled_time(state)
         )
 
 
@@ -158,14 +150,6 @@ class MedicationMarkSkippedButton(MedicationBaseButton):
     async def async_press(self) -> None:
         """Handle button press — mark dose skipped with correct scheduled_time."""
         state = self._coordinator.get_med_state(self._med_id)
-        scheduled_time = None
-        if state.get("overdue_since"):
-            try:
-                from datetime import datetime
-                overdue_dt = datetime.fromisoformat(state["overdue_since"])
-                scheduled_time = overdue_dt.strftime("%H:%M")
-            except (ValueError, KeyError):
-                pass
         await self._coordinator.async_mark_skipped(
-            self._med_id, scheduled_time=scheduled_time
+            self._med_id, scheduled_time=extract_scheduled_time(state)
         )

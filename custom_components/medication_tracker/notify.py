@@ -43,6 +43,8 @@ from .const import (
     DEFAULT_TAKEN_TITLE,
 )
 
+from .coordinator import extract_scheduled_time
+
 if TYPE_CHECKING:
     from .coordinator import MedicationCoordinator
 
@@ -99,6 +101,7 @@ class MedicationNotifier:
         self._fired: set[str] = set()
         self._fired_date: date = date.today()
         self._unsub_action: Any = None
+        self._reminder_unsubs: list[Any] = []
         self._register_action_listener()
 
     # ------------------------------------------------------------------
@@ -129,29 +132,11 @@ class MedicationNotifier:
             _LOGGER.debug("Notification action %s received for med %s", action, med_id)
 
             if is_taken:
-                # Pass the scheduled_time so the coordinator marks the correct slot as handled,
-                # clearing both is_overdue and is_due_soon as appropriate.
                 state = self._coordinator.get_med_state(med_id)
-                scheduled_time = None
-                if state.get("is_overdue") and state.get("overdue_since"):
-                    # Overdue — extract the time from overdue_since
-                    try:
-                        overdue_dt = datetime.fromisoformat(state["overdue_since"])
-                        scheduled_time = overdue_dt.strftime("%H:%M")
-                    except (ValueError, KeyError):
-                        pass
-                elif state.get("is_due_now") and state.get("due_at_time"):
-                    # Due now — extract the time from due_at_time
-                    try:
-                        due_dt = datetime.fromisoformat(state["due_at_time"])
-                        scheduled_time = due_dt.strftime("%H:%M")
-                    except (ValueError, KeyError):
-                        pass
-                elif state.get("is_due_soon") and state.get("next_dose_time"):
-                    # Due soon — use the upcoming scheduled slot time
-                    scheduled_time = state.get("next_dose_time")
                 self._hass.async_create_task(
-                    self._coordinator.async_mark_taken(med_id, scheduled_time=scheduled_time)
+                    self._coordinator.async_mark_taken(
+                        med_id, scheduled_time=extract_scheduled_time(state)
+                    )
                 )
             elif is_remind:
                 self._schedule_reminder(med_id)
@@ -167,8 +152,11 @@ class MedicationNotifier:
             med = self._coordinator.get_medication(med_id)
             if not med:
                 return
-            notif_config = self._coordinator.notification_config
             state = self._coordinator.get_med_state(med_id)
+            # Skip if the dose was already handled while the reminder was pending
+            if not (state.get("is_overdue") or state.get("is_due_now") or state.get("is_due_soon")):
+                return
+            notif_config = self._coordinator.notification_config
             title = notif_config.get(CONF_NOTIF_OVERDUE_TITLE, DEFAULT_OVERDUE_TITLE)
             message = notif_config.get(CONF_NOTIF_OVERDUE_MESSAGE, DEFAULT_OVERDUE_MESSAGE)
             self._hass.async_create_task(
@@ -188,13 +176,16 @@ class MedicationNotifier:
             )
 
         _LOGGER.debug("Scheduling reminder for med %s in 5 minutes", med_id)
-        async_call_later(self._hass, 300, _send_reminder)
+        self._reminder_unsubs.append(async_call_later(self._hass, 300, _send_reminder))
 
     def unsubscribe(self) -> None:
-        """Clean up the event listener on unload."""
+        """Clean up the event listener and any pending reminder timers on unload."""
         if self._unsub_action is not None:
             self._unsub_action()
             self._unsub_action = None
+        for cancel in self._reminder_unsubs:
+            cancel()
+        self._reminder_unsubs.clear()
 
     # ------------------------------------------------------------------
     # Public entry points

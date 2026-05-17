@@ -20,6 +20,7 @@ from .const import (
     DEFAULT_AS_NEEDED_MAX_PER_DAY,
     DEFAULT_AS_NEEDED_MIN_HOURS,
     DOMAIN,
+    DUE_SOON_MINUTES,
     MED_TYPE_AS_NEEDED,
     MED_TYPE_SCHEDULED,
     OVERDUE_GRACE_MINUTES,
@@ -30,6 +31,23 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 UPDATE_INTERVAL = timedelta(minutes=1)
+
+
+def extract_scheduled_time(state: dict[str, Any]) -> str | None:
+    """Return the HH:MM scheduled time for the current dose state, or None."""
+    if state.get("is_overdue") and state.get("overdue_since"):
+        try:
+            return datetime.fromisoformat(state["overdue_since"]).strftime("%H:%M")
+        except (ValueError, KeyError):
+            pass
+    elif state.get("is_due_now") and state.get("due_at_time"):
+        try:
+            return datetime.fromisoformat(state["due_at_time"]).strftime("%H:%M")
+        except (ValueError, KeyError):
+            pass
+    elif state.get("is_due_soon") and state.get("next_dose_time"):
+        return state["next_dose_time"]
+    return None
 
 
 class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -239,7 +257,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return False
         now = taken_at or dt_util.now()
         entry = {
-            "date": date.today().isoformat(),
+            "date": now.date().isoformat(),
             "taken_at": now.isoformat(),
             "scheduled_time": scheduled_time,
             "action": "taken",
@@ -368,7 +386,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         is_due_soon = False
         if next_dose_dt is not None:
             minutes_until = (next_dose_dt - now).total_seconds() / 60
-            is_due_soon = 0 <= minutes_until <= 60
+            is_due_soon = 0 <= minutes_until <= DUE_SOON_MINUTES
 
         last_taken: str | None = None
         if taken_entries:
@@ -419,21 +437,26 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # 24h rolling window
         window_start = now - timedelta(hours=24)
-        taken_24h = [
-            e for e in taken_entries_all
-            if e.get("taken_at") and datetime.fromisoformat(e["taken_at"]) >= window_start
-        ]
+        taken_24h = []
+        for e in taken_entries_all:
+            if not e.get("taken_at"):
+                continue
+            try:
+                if datetime.fromisoformat(e["taken_at"]) >= window_start:
+                    taken_24h.append(e)
+            except ValueError:
+                _LOGGER.warning("Skipping malformed taken_at timestamp: %s", e.get("taken_at"))
 
         # Last taken
         last_taken: str | None = None
         last_taken_dt: datetime | None = None
         if taken_entries_all:
-            last_taken = max(
-                (e["taken_at"] for e in taken_entries_all if e.get("taken_at")),
-                default=None,
-            )
+            last_taken = max(e["taken_at"] for e in taken_entries_all)
             if last_taken:
-                last_taken_dt = datetime.fromisoformat(last_taken)
+                try:
+                    last_taken_dt = datetime.fromisoformat(last_taken)
+                except ValueError:
+                    _LOGGER.warning("Skipping malformed last taken timestamp: %s", last_taken)
 
         # Determine availability
         is_available = True
@@ -450,7 +473,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             is_available = False
             # Available when oldest dose in window falls out
             oldest_in_window = min(
-                datetime.fromisoformat(e["taken_at"]) for e in taken_24h if e.get("taken_at")
+                datetime.fromisoformat(e["taken_at"]) for e in taken_24h
             )
             next_available_dt = oldest_in_window + timedelta(hours=24)
 
