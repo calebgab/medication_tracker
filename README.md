@@ -1,4 +1,4 @@
-# Medication Tracker for Home Assistant
+# <img src="custom_components/medication_tracker/brand/icon.png" alt="" height="32"/> Medication Tracker for Home Assistant
 
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/calebgab/medication_tracker.svg)](https://github.com/calebgab/medication_tracker/releases)
