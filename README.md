@@ -10,11 +10,12 @@ Track medications, scheduled doses, streaks, and overdue alerts — entirely loc
 
 ## Features
 
-- **Multiple medications** with individual schedules (times of day, specific days of week)
+- **Two medication types** — scheduled (fixed times of day) and as-needed/PRN (dose-limit tracking)
 - **Sensors** for next dose time, last taken timestamp, streak (consecutive days taken), and doses taken today
-- **Binary sensors** for overdue detection (with configurable grace period) and due-soon alerts (within 60 minutes)
+- **Binary sensors** for overdue detection (with configurable grace period) and due-soon alerts (within 60 minutes) for scheduled meds; availability tracking for PRN meds
 - **Button entities** to mark doses as taken or skipped — appear automatically on the device page
 - **Built-in notifications** — configure overdue, due soon, and taken confirmation alerts directly from the integration, with actionable notifications (Mark taken / Remind in 5 min) on iOS and Android
+- **Per-medication notification overrides** — enable or disable individual alert types per medication, overriding the global settings
 - **Services** to mark doses taken or skipped, and reset today's log
 - **Full UI configuration** — add, edit, and remove medications via the Home Assistant UI (no YAML required)
 - **Optional Lovelace card** — a custom dashboard card showing all medications with status and action buttons
@@ -58,11 +59,31 @@ Click **Configure** on the integration card, choose **Add new medication**, and 
 |-------|-------------|---------|
 | Name | Medication name | `Aspirin` |
 | Dose | Optional dose description | `100mg` |
-| Scheduled times | Comma-separated HH:MM | `08:00, 20:00` |
-| Days | Days of week (leave blank = every day) | `mon, wed, fri` |
+| Medication type | Scheduled or as-needed | `Scheduled` |
 | Notes | Optional reminder notes | `Take with food` |
 
-Days can be entered as `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun` (or `0`–`6`).
+Depending on the type selected, you will then be prompted for type-specific settings (see below).
+
+### Scheduled medications
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| Scheduled times | Comma-separated HH:MM (24-hour) | `08:00, 20:00` |
+| Days | Days of week (leave blank = every day) | `mon, wed, fri` |
+
+Days can be entered as `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`.
+
+### As-needed (PRN) medications
+
+As-needed medications have no fixed schedule. Instead you configure dose limits and the integration tracks availability and usage.
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| Max doses per day | Calendar-day maximum | `4` |
+| Max doses per 24 hours | Rolling 24-hour window maximum | `4` |
+| Minimum hours between doses | Minimum gap between any two doses | `4` |
+
+When any limit is reached the `available` binary sensor turns `off` and the `next_available` sensor shows when the medication can next be taken.
 
 ### Notifications
 
@@ -71,6 +92,7 @@ Click **Configure** on the integration card, then choose **Notifications** to se
 | Setting | Description |
 |---------|-------------|
 | Notify service | The HA notify service to use (e.g. `notify.mobile_app_your_phone`) — select from the dropdown of detected devices |
+| Alert when due | Send a notification when a dose is due |
 | Alert when overdue | Send a notification when a dose is past its grace period |
 | Overdue delay | Extra minutes to wait after the grace period before notifying (0 = immediate) |
 | Alert when due soon | Send a notification when a dose is due within 60 minutes |
@@ -78,7 +100,11 @@ Click **Configure** on the integration card, then choose **Notifications** to se
 
 Notifications on iOS and Android include **Mark taken** and **Remind in 5 min** action buttons. Tapping Mark taken updates the sensors immediately without opening the app.
 
-You can also customise the notification title and message templates, and override notification settings per medication.
+After the global settings, you can also customise the notification title and message templates for each alert type.
+
+#### Per-medication notification overrides
+
+After configuring global notification settings, choose **Per-medication overrides** from the Notifications menu and select a medication. You can then enable or disable each alert type individually for that medication, overriding whatever the global setting is.
 
 **Available placeholders in message templates:**
 
@@ -93,9 +119,7 @@ You can also customise the notification title and message templates, and overrid
 
 ## Entities
 
-For each medication, the following entities are created (grouped under one device per medication):
-
-### Sensors
+### Scheduled medications
 
 | Entity | Description |
 |--------|-------------|
@@ -103,22 +127,22 @@ For each medication, the following entities are created (grouped under one devic
 | `sensor.<name>_last_taken` | Datetime the medication was last marked taken |
 | `sensor.<name>_streak` | Consecutive days with at least one dose taken |
 | `sensor.<name>_taken_today` | Number of doses taken today |
-
-### Binary Sensors
-
-| Entity | Description |
-|--------|-------------|
 | `binary_sensor.<name>_overdue` | `on` when a scheduled dose is past its grace period with no entry |
 | `binary_sensor.<name>_due_soon` | `on` when the next dose is within 60 minutes |
-
-### Buttons
-
-| Entity | Description |
-|--------|-------------|
 | `button.<name>_mark_taken` | Mark the current dose as taken |
 | `button.<name>_mark_skipped` | Mark the current dose as skipped |
 
-Buttons appear automatically on the device page and can be added to any Lovelace dashboard.
+### As-needed (PRN) medications
+
+| Entity | Description |
+|--------|-------------|
+| `sensor.<name>_next_available` | Datetime when the medication can next be taken (absent if available now) |
+| `sensor.<name>_last_taken` | Datetime the medication was last marked taken |
+| `sensor.<name>_streak` | Consecutive days with at least one dose taken |
+| `sensor.<name>_taken_today` | Number of doses taken today |
+| `binary_sensor.<name>_available` | `on` when the medication is within all dose limits and can be taken |
+| `button.<name>_mark_taken` | Record a dose taken now |
+| `button.<name>_mark_skipped` | Mark a dose as skipped |
 
 ### State Attributes
 
@@ -131,6 +155,11 @@ The `next_dose` sensor includes:
 The `overdue` binary sensor includes:
 - `overdue_since` — ISO datetime of the missed scheduled slot
 
+The `next_available` sensor includes:
+- `as_needed_max_per_day` — configured daily maximum
+- `as_needed_max_per_24h` — configured 24-hour rolling maximum
+- `as_needed_min_hours` — configured minimum gap between doses
+
 ---
 
 ## Services
@@ -141,7 +170,7 @@ Record that a dose was taken.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `medication_id` | ✅ | The medication's unique ID (from entity attributes) |
+| `medication_id` | ✅ | The medication's unique ID (see below) |
 | `scheduled_time` | ❌ | Which scheduled slot this applies to (HH:MM) |
 | `taken_at` | ❌ | When it was taken (ISO datetime, defaults to now) |
 
@@ -161,16 +190,6 @@ Clear all taken/skipped entries for today for a given medication.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `medication_id` | ✅ | The medication's unique ID |
-
-### Finding the medication_id
-
-The `medication_id` is shown in the **state attributes** of any entity for that medication. You can also use a template:
-
-```yaml
-{{ state_attr('sensor.aspirin_next_dose', 'medication_id') }}
-```
-
-Or look it up via the **Developer Tools → States** panel.
 
 ---
 
@@ -201,22 +220,6 @@ A custom card is available that shows all your medications in one place, includi
 
 ## Automation Examples
 
-### Reminder notification when overdue
-
-```yaml
-automation:
-  - alias: "Medication overdue alert"
-    trigger:
-      - platform: state
-        entity_id: binary_sensor.aspirin_overdue
-        to: "on"
-    action:
-      - service: notify.mobile_app_your_phone
-        data:
-          title: "💊 Medication Reminder"
-          message: "Aspirin is overdue! Don't forget to take it."
-```
-
 ### Mark taken via NFC tap
 
 ```yaml
@@ -246,7 +249,7 @@ automation:
     action:
       - service: notify.mobile_app_your_phone
         data:
-          title: "💊 Good morning!"
+          title: "Good morning!"
           message: >
             Aspirin due at 08:00. Current streak:
             {{ states('sensor.aspirin_streak') }} days. Keep it up!
@@ -269,16 +272,17 @@ tap_action:
 
 ## Overdue Grace Period
 
-By default, a dose is not considered **overdue** until **30 minutes** after its scheduled time (to account for slight delays). This constant is defined in `const.py` as `OVERDUE_GRACE_MINUTES = 30`.
-
-The **due soon** window is **60 minutes** before a scheduled dose (`DUE_SOON_MINUTES = 60`).
+A scheduled dose is not considered overdue until **30 minutes** after its scheduled time, to account for slight delays. The due-soon window is **60 minutes** before a scheduled dose.
 
 ---
 
 ## Troubleshooting
 
 **I can't find the medication_id**
-Open Developer Tools → States, find any entity for your medication (e.g. `sensor.aspirin_next_dose`), and look in the **Attributes** panel.
+Open Developer Tools → States, find any entity for your medication (e.g. `sensor.aspirin_next_dose`), and look in the **Attributes** panel. You can also use a template:
+```yaml
+{{ state_attr('sensor.aspirin_next_dose', 'medication_id') }}
+```
 
 **The overdue sensor isn't triggering**
 Check that your scheduled times are in `HH:MM` 24-hour format and that your HA timezone is set correctly (**Settings → System → General**).
