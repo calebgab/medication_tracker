@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    ATTR_CURRENT_STOCK,
     ATTR_DOSE,
     ATTR_NEXT_DOSE,
     ATTR_NOTES,
@@ -23,6 +24,7 @@ from .const import (
     MED_TYPE_AS_NEEDED,
     SUFFIX_AVAILABLE,
     SUFFIX_DUE,
+    SUFFIX_LOW_STOCK,
     SUFFIX_OVERDUE,
 )
 from .coordinator import MedicationCoordinator
@@ -73,10 +75,12 @@ def _binary_sensors_for_med(
     if med and med.get("med_type") == MED_TYPE_AS_NEEDED:
         return [
             MedicationAvailableSensor(coordinator, entry_id, med_id),
+            MedicationLowStockSensor(coordinator, entry_id, med_id),
         ]
     return [
         MedicationOverdueSensor(coordinator, entry_id, med_id),
         MedicationDueSoonSensor(coordinator, entry_id, med_id),
+        MedicationLowStockSensor(coordinator, entry_id, med_id),
     ]
 
 
@@ -231,5 +235,42 @@ class MedicationAvailableSensor(MedicationBaseBinarySensor):
             "next_available": data.get("next_available"),
             "doses_taken_today": data.get("doses_taken_today", 0),
             "doses_taken_24h": data.get("doses_taken_24h", 0),
+            ATTR_DOSE: data.get(ATTR_DOSE, ""),
+        }
+
+
+# ---------------------------------------------------------------------------
+# Low stock binary sensor
+# ---------------------------------------------------------------------------
+
+
+class MedicationLowStockSensor(MedicationBaseBinarySensor):
+    """Binary sensor: True when stock is at or below the low-stock threshold."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
+        super().__init__(coordinator, entry_id, med_id, SUFFIX_LOW_STOCK)
+
+    @property
+    def name(self) -> str:
+        return "Low Stock"
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._state_data.get("is_low_stock", False))
+
+    @property
+    def icon(self) -> str:
+        return "mdi:package-variant-closed-remove" if self.is_on else "mdi:package-variant-closed"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._state_data
+        return {
+            ATTR_CURRENT_STOCK: data.get(ATTR_CURRENT_STOCK),
+            "stock_low_threshold": data.get("stock_low_threshold"),
             ATTR_DOSE: data.get(ATTR_DOSE, ""),
         }

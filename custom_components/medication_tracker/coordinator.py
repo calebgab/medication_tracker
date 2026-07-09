@@ -15,10 +15,16 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 import homeassistant.util.dt as dt_util
 
 from .const import (
+    CONF_CURRENT_STOCK,
     CONF_NOTIFICATIONS,
+    CONF_STOCK_LOW_THRESHOLD,
+    CONF_STOCK_PER_DOSE,
+    CONF_STOCK_TRACKING_ENABLED,
     DEFAULT_AS_NEEDED_MAX_PER_24H,
     DEFAULT_AS_NEEDED_MAX_PER_DAY,
     DEFAULT_AS_NEEDED_MIN_HOURS,
+    DEFAULT_STOCK_LOW_THRESHOLD,
+    DEFAULT_STOCK_PER_DOSE,
     DOMAIN,
     DUE_SOON_MINUTES,
     MED_TYPE_AS_NEEDED,
@@ -159,6 +165,10 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "as_needed_max_per_day": config.get("as_needed_max_per_day", DEFAULT_AS_NEEDED_MAX_PER_DAY),
             "as_needed_max_per_24h": config.get("as_needed_max_per_24h", DEFAULT_AS_NEEDED_MAX_PER_24H),
             "as_needed_min_hours": config.get("as_needed_min_hours", DEFAULT_AS_NEEDED_MIN_HOURS),
+            CONF_STOCK_TRACKING_ENABLED: config.get(CONF_STOCK_TRACKING_ENABLED, False),
+            CONF_CURRENT_STOCK: config.get(CONF_CURRENT_STOCK),
+            CONF_STOCK_PER_DOSE: config.get(CONF_STOCK_PER_DOSE, DEFAULT_STOCK_PER_DOSE),
+            CONF_STOCK_LOW_THRESHOLD: config.get(CONF_STOCK_LOW_THRESHOLD, DEFAULT_STOCK_LOW_THRESHOLD),
         }
         self._medications.append(entry)
         await self._async_save()
@@ -179,6 +189,19 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "as_needed_max_per_day": config.get("as_needed_max_per_day", med.get("as_needed_max_per_day", DEFAULT_AS_NEEDED_MAX_PER_DAY)),
                     "as_needed_max_per_24h": config.get("as_needed_max_per_24h", med.get("as_needed_max_per_24h", DEFAULT_AS_NEEDED_MAX_PER_24H)),
                     "as_needed_min_hours": config.get("as_needed_min_hours", med.get("as_needed_min_hours", DEFAULT_AS_NEEDED_MIN_HOURS)),
+                    CONF_STOCK_TRACKING_ENABLED: config.get(
+                        CONF_STOCK_TRACKING_ENABLED, med.get(CONF_STOCK_TRACKING_ENABLED, False)
+                    ),
+                    CONF_CURRENT_STOCK: config.get(
+                        CONF_CURRENT_STOCK, med.get(CONF_CURRENT_STOCK)
+                    ),
+                    CONF_STOCK_PER_DOSE: config.get(
+                        CONF_STOCK_PER_DOSE, med.get(CONF_STOCK_PER_DOSE, DEFAULT_STOCK_PER_DOSE)
+                    ),
+                    CONF_STOCK_LOW_THRESHOLD: config.get(
+                        CONF_STOCK_LOW_THRESHOLD,
+                        med.get(CONF_STOCK_LOW_THRESHOLD, DEFAULT_STOCK_LOW_THRESHOLD),
+                    ),
                     # Preserve notification overrides
                     "notification_overrides": config.get(
                         "notification_overrides",
@@ -253,7 +276,8 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         taken_at: datetime | None = None,
         scheduled_time: str | None = None,
     ) -> bool:
-        if not self.get_medication(med_id):
+        med = self.get_medication(med_id)
+        if not med:
             return False
         now = taken_at or dt_util.now()
         entry = {
@@ -263,6 +287,15 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "action": "taken",
         }
         self._dose_log.setdefault(med_id, []).append(entry)
+
+        if med.get(CONF_STOCK_TRACKING_ENABLED) and med.get(CONF_CURRENT_STOCK) is not None:
+            per_dose = med.get(CONF_STOCK_PER_DOSE, DEFAULT_STOCK_PER_DOSE)
+            new_stock = max(0.0, round(med[CONF_CURRENT_STOCK] - per_dose, 2))
+            for i, m in enumerate(self._medications):
+                if m["id"] == med_id:
+                    self._medications[i] = {**m, CONF_CURRENT_STOCK: new_stock}
+                    break
+
         await self._async_save()
         await self.async_refresh()
 
@@ -302,6 +335,20 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._async_save()
         await self.async_refresh()
         return True
+
+    async def async_adjust_stock(self, med_id: str, amount: float) -> bool:
+        """Add to (or subtract from) a medication's current stock level."""
+        for i, med in enumerate(self._medications):
+            if med["id"] == med_id:
+                if not med.get(CONF_STOCK_TRACKING_ENABLED):
+                    return False
+                current = med.get(CONF_CURRENT_STOCK) or 0
+                new_stock = max(0.0, round(current + amount, 2))
+                self._medications[i] = {**med, CONF_CURRENT_STOCK: new_stock}
+                await self._async_save()
+                await self.async_refresh()
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Internal state calculation
@@ -396,6 +443,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
         streak = self._calculate_streak(med["id"], today)
+        stock_state = self._build_stock_state(med)
 
         return {
             "name": med["name"],
@@ -416,6 +464,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "next_dose_time": next_dose_time_str,
             "last_taken": last_taken,
             "streak": streak,
+            **stock_state,
         }
 
     def _build_as_needed_state(self, med: dict[str, Any], now: datetime) -> dict[str, Any]:
@@ -486,6 +535,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 next_available_dt = earliest_next
 
         streak = self._calculate_streak(med["id"], today)
+        stock_state = self._build_stock_state(med)
 
         return {
             "name": med["name"],
@@ -513,6 +563,24 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "is_due_soon": False,
             "next_dose": None,
             "next_dose_time": None,
+            **stock_state,
+        }
+
+    def _build_stock_state(self, med: dict[str, Any]) -> dict[str, Any]:
+        """Derive stock-tracking fields shared by scheduled and as-needed medications."""
+        tracking_enabled = bool(med.get(CONF_STOCK_TRACKING_ENABLED, False))
+        current_stock = med.get(CONF_CURRENT_STOCK)
+        stock_per_dose = med.get(CONF_STOCK_PER_DOSE, DEFAULT_STOCK_PER_DOSE)
+        stock_low_threshold = med.get(CONF_STOCK_LOW_THRESHOLD, DEFAULT_STOCK_LOW_THRESHOLD)
+        is_low_stock = (
+            tracking_enabled and current_stock is not None and current_stock <= stock_low_threshold
+        )
+        return {
+            "stock_tracking_enabled": tracking_enabled,
+            "current_stock": current_stock,
+            "stock_per_dose": stock_per_dose,
+            "stock_low_threshold": stock_low_threshold,
+            "is_low_stock": is_low_stock,
         }
 
     def _calculate_streak(self, med_id: str, today: date) -> int:

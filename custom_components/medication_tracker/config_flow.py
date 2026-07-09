@@ -14,6 +14,7 @@ from .const import (
     CONF_AS_NEEDED_MAX_PER_24H,
     CONF_AS_NEEDED_MAX_PER_DAY,
     CONF_AS_NEEDED_MIN_HOURS,
+    CONF_CURRENT_STOCK,
     CONF_MED_DAYS,
     CONF_MED_DOSE,
     CONF_MED_NAME,
@@ -27,12 +28,16 @@ from .const import (
     CONF_NOTIF_DUE_SOON_MESSAGE,
     CONF_NOTIF_DUE_SOON_TITLE,
     CONF_NOTIF_DUE_TITLE,
+    CONF_NOTIF_LOW_STOCK_ENABLED,
+    CONF_NOTIF_LOW_STOCK_MESSAGE,
+    CONF_NOTIF_LOW_STOCK_TITLE,
     CONF_NOTIF_OVERDUE_DELAY,
     CONF_NOTIF_OVERDUE_ENABLED,
     CONF_NOTIF_OVERDUE_MESSAGE,
     CONF_NOTIF_OVERDUE_TITLE,
     CONF_NOTIF_OVERRIDE_DUE,
     CONF_NOTIF_OVERRIDE_DUE_SOON,
+    CONF_NOTIF_OVERRIDE_LOW_STOCK,
     CONF_NOTIF_OVERRIDE_OVERDUE,
     CONF_NOTIF_OVERRIDE_TAKEN,
     CONF_NOTIF_OVERRIDES,
@@ -40,6 +45,9 @@ from .const import (
     CONF_NOTIF_TAKEN_MESSAGE,
     CONF_NOTIF_TAKEN_TITLE,
     CONF_NOTIF_TARGET,
+    CONF_STOCK_LOW_THRESHOLD,
+    CONF_STOCK_PER_DOSE,
+    CONF_STOCK_TRACKING_ENABLED,
     DEFAULT_AS_NEEDED_MAX_PER_24H,
     DEFAULT_AS_NEEDED_MAX_PER_DAY,
     DEFAULT_AS_NEEDED_MIN_HOURS,
@@ -47,10 +55,14 @@ from .const import (
     DEFAULT_DUE_SOON_MESSAGE,
     DEFAULT_DUE_SOON_TITLE,
     DEFAULT_DUE_TITLE,
+    DEFAULT_LOW_STOCK_MESSAGE,
+    DEFAULT_LOW_STOCK_TITLE,
     DEFAULT_NOTIFY_TARGET,
     DEFAULT_OVERDUE_DELAY,
     DEFAULT_OVERDUE_MESSAGE,
     DEFAULT_OVERDUE_TITLE,
+    DEFAULT_STOCK_LOW_THRESHOLD,
+    DEFAULT_STOCK_PER_DOSE,
     DEFAULT_TAKEN_MESSAGE,
     DEFAULT_TAKEN_TITLE,
     DOMAIN,
@@ -87,6 +99,60 @@ def _validate_days(days_raw: str) -> list[int]:
                 f"Invalid day '{part}'. Use mon/tue/wed/thu/fri/sat/sun or 0-6."
             )
     return sorted(set(result))
+
+
+def _stock_schema_fields(med: dict[str, Any] | None = None) -> dict[Any, Any]:
+    """Return the shared schema fields for optional per-medication stock tracking."""
+    med = med or {}
+    return {
+        vol.Optional(
+            CONF_STOCK_TRACKING_ENABLED,
+            default=med.get(CONF_STOCK_TRACKING_ENABLED, False),
+        ): bool,
+        vol.Optional(
+            CONF_CURRENT_STOCK,
+            default=med.get(CONF_CURRENT_STOCK) or 0,
+        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional(
+            CONF_STOCK_PER_DOSE,
+            default=med.get(CONF_STOCK_PER_DOSE, DEFAULT_STOCK_PER_DOSE),
+        ): vol.All(vol.Coerce(float), vol.Range(min=0.01)),
+        vol.Optional(
+            CONF_STOCK_LOW_THRESHOLD,
+            default=med.get(CONF_STOCK_LOW_THRESHOLD, DEFAULT_STOCK_LOW_THRESHOLD),
+        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+    }
+
+
+def _stock_config_from_input(
+    user_input: dict[str, Any], existing_med: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Extract stock-tracking fields from options flow form input.
+
+    current_stock is only taken from the submitted form when tracking is being
+    newly enabled (adding a medication, or flipping tracking on for the first
+    time). Once tracking is already on, the form's snapshot of current_stock
+    (taken when the form was rendered) is stale relative to the coordinator's
+    live value — which can change via dose-taking or the adjust_stock service
+    while the form is open — so we preserve the live value instead of letting
+    an unrelated edit silently revert it. Adjusting stock thereafter goes
+    through the adjust_stock service.
+    """
+    existing_med = existing_med or {}
+    was_tracking = bool(existing_med.get(CONF_STOCK_TRACKING_ENABLED, False))
+    tracking_enabled = user_input.get(CONF_STOCK_TRACKING_ENABLED, False)
+    if was_tracking and tracking_enabled:
+        current_stock = existing_med.get(CONF_CURRENT_STOCK)
+    else:
+        current_stock = user_input.get(CONF_CURRENT_STOCK)
+    return {
+        CONF_STOCK_TRACKING_ENABLED: tracking_enabled,
+        CONF_CURRENT_STOCK: current_stock,
+        CONF_STOCK_PER_DOSE: user_input.get(CONF_STOCK_PER_DOSE, DEFAULT_STOCK_PER_DOSE),
+        CONF_STOCK_LOW_THRESHOLD: user_input.get(
+            CONF_STOCK_LOW_THRESHOLD, DEFAULT_STOCK_LOW_THRESHOLD
+        ),
+    }
 
 
 def _get_notify_services(hass: Any) -> dict[str, str]:
@@ -260,6 +326,7 @@ class MedicationOptionsFlow(OptionsFlow):
                         "times": times,
                         "days": days,
                         "notes": base.get(CONF_MED_NOTES, ""),
+                        **_stock_config_from_input(user_input),
                     }
                 )
                 return await self.async_step_init()
@@ -270,6 +337,7 @@ class MedicationOptionsFlow(OptionsFlow):
                 {
                     vol.Optional(CONF_MED_TIMES, default=""): str,
                     vol.Optional(CONF_MED_DAYS, default=""): str,
+                    **_stock_schema_fields(),
                 }
             ),
             errors=errors,
@@ -297,6 +365,7 @@ class MedicationOptionsFlow(OptionsFlow):
                     "as_needed_max_per_day": user_input.get(CONF_AS_NEEDED_MAX_PER_DAY, DEFAULT_AS_NEEDED_MAX_PER_DAY),
                     "as_needed_max_per_24h": user_input.get(CONF_AS_NEEDED_MAX_PER_24H, DEFAULT_AS_NEEDED_MAX_PER_24H),
                     "as_needed_min_hours": user_input.get(CONF_AS_NEEDED_MIN_HOURS, DEFAULT_AS_NEEDED_MIN_HOURS),
+                    **_stock_config_from_input(user_input),
                 }
             )
             return await self.async_step_init()
@@ -314,6 +383,7 @@ class MedicationOptionsFlow(OptionsFlow):
                     vol.Optional(CONF_AS_NEEDED_MIN_HOURS, default=DEFAULT_AS_NEEDED_MIN_HOURS): vol.All(
                         vol.Coerce(float), vol.Range(min=0.5, max=24)
                     ),
+                    **_stock_schema_fields(),
                 }
             ),
         )
@@ -394,6 +464,7 @@ class MedicationOptionsFlow(OptionsFlow):
                         "times": times,
                         "days": days,
                         "notes": base.get(CONF_MED_NOTES, ""),
+                        **_stock_config_from_input(user_input, med),
                     },
                 )
                 return await self.async_step_init()
@@ -408,6 +479,7 @@ class MedicationOptionsFlow(OptionsFlow):
                 {
                     vol.Optional(CONF_MED_TIMES, default=times_str): str,
                     vol.Optional(CONF_MED_DAYS, default=days_str): str,
+                    **_stock_schema_fields(med),
                 }
             ),
             errors=errors,
@@ -441,6 +513,7 @@ class MedicationOptionsFlow(OptionsFlow):
                     "as_needed_max_per_day": user_input.get(CONF_AS_NEEDED_MAX_PER_DAY, DEFAULT_AS_NEEDED_MAX_PER_DAY),
                     "as_needed_max_per_24h": user_input.get(CONF_AS_NEEDED_MAX_PER_24H, DEFAULT_AS_NEEDED_MAX_PER_24H),
                     "as_needed_min_hours": user_input.get(CONF_AS_NEEDED_MIN_HOURS, DEFAULT_AS_NEEDED_MIN_HOURS),
+                    **_stock_config_from_input(user_input, med),
                 },
             )
             return await self.async_step_init()
@@ -458,6 +531,7 @@ class MedicationOptionsFlow(OptionsFlow):
                     vol.Optional(CONF_AS_NEEDED_MIN_HOURS, default=med.get("as_needed_min_hours", DEFAULT_AS_NEEDED_MIN_HOURS)): vol.All(
                         vol.Coerce(float), vol.Range(min=0.5, max=24)
                     ),
+                    **_stock_schema_fields(med),
                 }
             ),
         )
@@ -530,6 +604,12 @@ class MedicationOptionsFlow(OptionsFlow):
                 )
                 return await self.async_step_notification_taken_message()
 
+            if action == "edit_low_stock_message":
+                await coordinator.async_update_notification_config(
+                    _notification_config_from_input(user_input, cfg)
+                )
+                return await self.async_step_notification_low_stock_message()
+
             if action == "per_medication":
                 await coordinator.async_update_notification_config(
                     _notification_config_from_input(user_input, cfg)
@@ -551,6 +631,7 @@ class MedicationOptionsFlow(OptionsFlow):
             "edit_overdue_message": "Edit overdue message template",
             "edit_due_soon_message": "Edit due soon message template",
             "edit_taken_message": "Edit taken confirmation message",
+            "edit_low_stock_message": "Edit low stock message template",
             "per_medication": "Per-medication overrides",
         }
 
@@ -581,6 +662,10 @@ class MedicationOptionsFlow(OptionsFlow):
                     vol.Optional(
                         CONF_NOTIF_TAKEN_ENABLED,
                         default=cfg.get(CONF_NOTIF_TAKEN_ENABLED, False),
+                    ): bool,
+                    vol.Optional(
+                        CONF_NOTIF_LOW_STOCK_ENABLED,
+                        default=cfg.get(CONF_NOTIF_LOW_STOCK_ENABLED, False),
                     ): bool,
                     vol.Required("action", default="save"): vol.In(action_labels),
                 }
@@ -744,6 +829,45 @@ class MedicationOptionsFlow(OptionsFlow):
         )
 
     # ------------------------------------------------------------------
+    # Notifications: low stock message template
+    # ------------------------------------------------------------------
+
+    async def async_step_notification_low_stock_message(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        coordinator = self._entry.runtime_data
+        cfg = coordinator.notification_config
+
+        if user_input is not None:
+            updated = {
+                **cfg,
+                CONF_NOTIF_LOW_STOCK_TITLE: user_input.get(
+                    CONF_NOTIF_LOW_STOCK_TITLE, DEFAULT_LOW_STOCK_TITLE
+                ),
+                CONF_NOTIF_LOW_STOCK_MESSAGE: user_input.get(
+                    CONF_NOTIF_LOW_STOCK_MESSAGE, DEFAULT_LOW_STOCK_MESSAGE
+                ),
+            }
+            await coordinator.async_update_notification_config(updated)
+            return await self.async_step_notifications()
+
+        return self.async_show_form(
+            step_id="notification_low_stock_message",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_NOTIF_LOW_STOCK_TITLE,
+                        default=cfg.get(CONF_NOTIF_LOW_STOCK_TITLE, DEFAULT_LOW_STOCK_TITLE),
+                    ): str,
+                    vol.Optional(
+                        CONF_NOTIF_LOW_STOCK_MESSAGE,
+                        default=cfg.get(CONF_NOTIF_LOW_STOCK_MESSAGE, DEFAULT_LOW_STOCK_MESSAGE),
+                    ): str,
+                }
+            ),
+        )
+
+    # ------------------------------------------------------------------
     # Notifications: pick medication for per-medication overrides
     # ------------------------------------------------------------------
 
@@ -793,11 +917,13 @@ class MedicationOptionsFlow(OptionsFlow):
             global_overdue = cfg.get(CONF_NOTIF_OVERDUE_ENABLED, False)
             global_due_soon = cfg.get(CONF_NOTIF_DUE_SOON_ENABLED, False)
             global_taken = cfg.get(CONF_NOTIF_TAKEN_ENABLED, False)
+            global_low_stock = cfg.get(CONF_NOTIF_LOW_STOCK_ENABLED, False)
 
             val_due = user_input.get(CONF_NOTIF_OVERRIDE_DUE)
             val_overdue = user_input.get(CONF_NOTIF_OVERRIDE_OVERDUE)
             val_due_soon = user_input.get(CONF_NOTIF_OVERRIDE_DUE_SOON)
             val_taken = user_input.get(CONF_NOTIF_OVERRIDE_TAKEN)
+            val_low_stock = user_input.get(CONF_NOTIF_OVERRIDE_LOW_STOCK)
 
             if val_due is not None and val_due != global_due:
                 overrides[CONF_NOTIF_OVERRIDE_DUE] = val_due
@@ -807,6 +933,8 @@ class MedicationOptionsFlow(OptionsFlow):
                 overrides[CONF_NOTIF_OVERRIDE_DUE_SOON] = val_due_soon
             if val_taken is not None and val_taken != global_taken:
                 overrides[CONF_NOTIF_OVERRIDE_TAKEN] = val_taken
+            if val_low_stock is not None and val_low_stock != global_low_stock:
+                overrides[CONF_NOTIF_OVERRIDE_LOW_STOCK] = val_low_stock
 
             await coordinator.async_update_med_notification_overrides(
                 self._override_med_id,  # type: ignore[arg-type]
@@ -818,6 +946,7 @@ class MedicationOptionsFlow(OptionsFlow):
         global_overdue = cfg.get(CONF_NOTIF_OVERDUE_ENABLED, False)
         global_due_soon = cfg.get(CONF_NOTIF_DUE_SOON_ENABLED, False)
         global_taken = cfg.get(CONF_NOTIF_TAKEN_ENABLED, False)
+        global_low_stock = cfg.get(CONF_NOTIF_LOW_STOCK_ENABLED, False)
 
         return self.async_show_form(
             step_id="notification_med_overrides",
@@ -838,6 +967,10 @@ class MedicationOptionsFlow(OptionsFlow):
                     vol.Optional(
                         CONF_NOTIF_OVERRIDE_TAKEN,
                         default=existing.get(CONF_NOTIF_OVERRIDE_TAKEN, global_taken),
+                    ): bool,
+                    vol.Optional(
+                        CONF_NOTIF_OVERRIDE_LOW_STOCK,
+                        default=existing.get(CONF_NOTIF_OVERRIDE_LOW_STOCK, global_low_stock),
                     ): bool,
                 }
             ),
@@ -874,5 +1007,8 @@ def _notification_config_from_input(
         ),
         CONF_NOTIF_TAKEN_ENABLED: user_input.get(
             CONF_NOTIF_TAKEN_ENABLED, existing.get(CONF_NOTIF_TAKEN_ENABLED, False)
+        ),
+        CONF_NOTIF_LOW_STOCK_ENABLED: user_input.get(
+            CONF_NOTIF_LOW_STOCK_ENABLED, existing.get(CONF_NOTIF_LOW_STOCK_ENABLED, False)
         ),
     }

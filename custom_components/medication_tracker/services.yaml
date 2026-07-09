@@ -57,3 +57,29 @@ reset_today:
       required: true
       selector:
         text:
+
+adjust_stock:
+  name: Adjust medication stock
+  description: >
+    Add to or subtract from a medication's current stock level. Use a
+    positive amount when restocking, or a negative amount to correct a
+    miscount. Only works for medications with stock tracking enabled.
+  fields:
+    medication_id:
+      name: Medication ID
+      description: The unique ID of the medication.
+      required: true
+      selector:
+        text:
+    amount:
+      name: Amount
+      description: >
+        The quantity to add (positive) or remove (negative) from current
+        stock, e.g. 30 after a refill.
+      required: true
+      selector:
+        number:
+          min: -100000
+          max: 100000
+          step: 0.5
+          mode: box
