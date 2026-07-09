@@ -1,6 +1,6 @@
 # <img src="custom_components/medication_tracker/brand/icon.png" alt="" height="32"/> Medication Tracker for Home Assistant
 
-[![HACS Badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/default)
 [![GitHub release](https://img.shields.io/github/release/calebgab/medication_tracker.svg)](https://github.com/calebgab/medication_tracker/releases)
 [![CI](https://github.com/calebgab/medication_tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/calebgab/medication_tracker/actions/workflows/ci.yml)
 
@@ -28,10 +28,8 @@ Track medications, scheduled doses, streaks, and overdue alerts — entirely loc
 ### Via HACS (recommended)
 
 1. Open HACS → Integrations
-2. Click the **⋮** menu → **Custom repositories**
-3. Add `https://github.com/calebgab/medication_tracker` with category **Integration**
-4. Search for **Medication Tracker** and install
-5. Restart Home Assistant
+2. Search for **Medication Tracker** and install
+3. Restart Home Assistant
 
 ### Manual
 
