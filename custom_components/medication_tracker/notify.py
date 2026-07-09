@@ -18,12 +18,16 @@ from .const import (
     CONF_NOTIF_DUE_SOON_MESSAGE,
     CONF_NOTIF_DUE_SOON_TITLE,
     CONF_NOTIF_DUE_TITLE,
+    CONF_NOTIF_LOW_STOCK_ENABLED,
+    CONF_NOTIF_LOW_STOCK_MESSAGE,
+    CONF_NOTIF_LOW_STOCK_TITLE,
     CONF_NOTIF_OVERDUE_DELAY,
     CONF_NOTIF_OVERDUE_ENABLED,
     CONF_NOTIF_OVERDUE_MESSAGE,
     CONF_NOTIF_OVERDUE_TITLE,
     CONF_NOTIF_OVERRIDE_DUE,
     CONF_NOTIF_OVERRIDE_DUE_SOON,
+    CONF_NOTIF_OVERRIDE_LOW_STOCK,
     CONF_NOTIF_OVERRIDE_OVERDUE,
     CONF_NOTIF_OVERRIDE_TAKEN,
     CONF_NOTIF_OVERRIDES,
@@ -35,6 +39,8 @@ from .const import (
     DEFAULT_DUE_SOON_MESSAGE,
     DEFAULT_DUE_SOON_TITLE,
     DEFAULT_DUE_TITLE,
+    DEFAULT_LOW_STOCK_MESSAGE,
+    DEFAULT_LOW_STOCK_TITLE,
     DEFAULT_NOTIFY_TARGET,
     DEFAULT_OVERDUE_DELAY,
     DEFAULT_OVERDUE_MESSAGE,
@@ -100,6 +106,11 @@ class MedicationNotifier:
         self._coordinator = coordinator
         self._fired: set[str] = set()
         self._fired_date: date = date.today()
+        # Low stock is a persistent condition, not a daily occurrence like the
+        # other alert types, so its dedup key is tracked separately and only
+        # cleared when stock rises back above the threshold — not by the
+        # daily reset below, which would otherwise re-fire it every midnight.
+        self._low_stock_fired: set[str] = set()
         self._unsub_action: Any = None
         self._reminder_unsubs: list[Any] = []
         self._register_action_listener()
@@ -197,12 +208,14 @@ class MedicationNotifier:
         notif_config = self._coordinator.notification_config
 
         for med in self._coordinator.medications:
-            # PRN medications are excluded from all automatic notifications
-            if med.get("med_type") == MED_TYPE_AS_NEEDED:
-                continue
             med_id = med["id"]
             state = self._coordinator.get_med_state(med_id)
             overrides = med.get(CONF_NOTIF_OVERRIDES, {})
+            await self._check_low_stock(med, state, notif_config, overrides)
+
+            # Due/overdue/due-soon checks don't apply to PRN medications
+            if med.get("med_type") == MED_TYPE_AS_NEEDED:
+                continue
             await self._check_due(med, state, notif_config, overrides)
             await self._check_overdue(med, state, notif_config, overrides)
             await self._check_due_soon(med, state, notif_config, overrides)
@@ -385,6 +398,50 @@ class MedicationNotifier:
         )
         self._fired.add(fire_key)
 
+    async def _check_low_stock(
+        self,
+        med: dict[str, Any],
+        state: dict[str, Any],
+        notif_config: dict[str, Any],
+        overrides: dict[str, Any],
+    ) -> None:
+        med_id = med["id"]
+        if not state.get("is_low_stock"):
+            # Stock has been replenished — allow the alert to fire again if it drops low later
+            self._low_stock_fired.discard(med_id)
+            return
+
+        enabled = overrides.get(
+            CONF_NOTIF_OVERRIDE_LOW_STOCK,
+            notif_config.get(CONF_NOTIF_LOW_STOCK_ENABLED, False),
+        )
+        if not enabled:
+            _LOGGER.debug("Low stock notification disabled for %s", med["name"])
+            return
+
+        if med_id in self._low_stock_fired:
+            _LOGGER.debug("Low stock notification already fired for %s", med["name"])
+            return
+
+        _LOGGER.debug("Firing low stock notification for %s", med["name"])
+        title = notif_config.get(CONF_NOTIF_LOW_STOCK_TITLE, DEFAULT_LOW_STOCK_TITLE)
+        message = notif_config.get(CONF_NOTIF_LOW_STOCK_MESSAGE, DEFAULT_LOW_STOCK_MESSAGE)
+        await self._send(
+            notif_config,
+            title,
+            message,
+            {
+                "medication": med["name"],
+                "dose": med.get("dose", ""),
+                "time": "",
+                "overdue_since": "",
+                "stock": _format_stock(state.get("current_stock")),
+            },
+            med_id=med["id"],
+            actionable=False,
+        )
+        self._low_stock_fired.add(med_id)
+
     # ------------------------------------------------------------------
     # Send
     # ------------------------------------------------------------------
@@ -456,3 +513,12 @@ def _format_time(iso_str: str) -> str:
         return dt.strftime("%H:%M")
     except ValueError:
         return iso_str
+
+
+def _format_stock(value: Any) -> str:
+    """Format a stock quantity for display, dropping a trailing .0."""
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)

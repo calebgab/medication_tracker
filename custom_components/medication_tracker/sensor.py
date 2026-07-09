@@ -18,6 +18,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 import homeassistant.util.dt as dt_util
 
 from .const import (
+    ATTR_CURRENT_STOCK,
     ATTR_DOSE,
     ATTR_LAST_TAKEN,
     ATTR_NEXT_DOSE,
@@ -32,6 +33,7 @@ from .const import (
     SUFFIX_LAST_TAKEN,
     SUFFIX_NEXT_AVAILABLE,
     SUFFIX_NEXT_DOSE,
+    SUFFIX_STOCK,
     SUFFIX_STREAK,
     SUFFIX_TAKEN_TODAY,
 )
@@ -89,12 +91,14 @@ def _sensors_for_med(
             MedicationLastTakenSensor(coordinator, entry_id, med_id),
             MedicationStreakSensor(coordinator, entry_id, med_id),
             MedicationTakenTodaySensor(coordinator, entry_id, med_id),
+            MedicationStockSensor(coordinator, entry_id, med_id),
         ]
     return [
         MedicationNextDoseSensor(coordinator, entry_id, med_id),
         MedicationLastTakenSensor(coordinator, entry_id, med_id),
         MedicationStreakSensor(coordinator, entry_id, med_id),
         MedicationTakenTodaySensor(coordinator, entry_id, med_id),
+        MedicationStockSensor(coordinator, entry_id, med_id),
     ]
 
 
@@ -327,4 +331,43 @@ class MedicationNextAvailableSensor(MedicationBaseSensor):
             "as_needed_min_hours": data.get("as_needed_min_hours"),
             ATTR_DOSE: data.get(ATTR_DOSE, ""),
             ATTR_NOTES: data.get(ATTR_NOTES, ""),
+        }
+
+
+# ---------------------------------------------------------------------------
+# Stock sensor
+# ---------------------------------------------------------------------------
+
+
+class MedicationStockSensor(MedicationBaseSensor):
+    """Sensor showing the current stock level for a medication, when tracked."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:package-variant"
+    _attr_translation_key = "stock"
+
+    def __init__(
+        self, coordinator: MedicationCoordinator, entry_id: str, med_id: str
+    ) -> None:
+        super().__init__(coordinator, entry_id, med_id, SUFFIX_STOCK)
+
+    @property
+    def name(self) -> str:
+        return "Stock"
+
+    @property
+    def native_value(self) -> float | None:
+        data = self._state_data
+        if not data.get("stock_tracking_enabled"):
+            return None
+        return data.get(ATTR_CURRENT_STOCK)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._state_data
+        return {
+            "stock_tracking_enabled": data.get("stock_tracking_enabled", False),
+            "stock_per_dose": data.get("stock_per_dose"),
+            "stock_low_threshold": data.get("stock_low_threshold"),
+            ATTR_DOSE: data.get(ATTR_DOSE, ""),
         }

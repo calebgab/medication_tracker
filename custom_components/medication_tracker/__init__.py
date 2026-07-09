@@ -12,11 +12,13 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    ATTR_AMOUNT,
     ATTR_MEDICATION_ID,
     ATTR_SCHEDULED_TIME,
     ATTR_TAKEN_AT,
     DOMAIN,
     PLATFORMS,
+    SERVICE_ADJUST_STOCK,
     SERVICE_MARK_SKIPPED,
     SERVICE_MARK_TAKEN,
     SERVICE_RESET_TODAY,
@@ -48,6 +50,14 @@ _MARK_TAKEN_SCHEMA = _SERVICE_BASE_SCHEMA.extend(
 _MARK_SKIPPED_SCHEMA = _SERVICE_BASE_SCHEMA.extend(
     {
         vol.Optional(ATTR_SCHEDULED_TIME): cv.string,
+    }
+)
+
+_ADJUST_STOCK_SCHEMA = _SERVICE_BASE_SCHEMA.extend(
+    {
+        vol.Required(ATTR_AMOUNT): vol.All(
+            vol.Coerce(float), vol.Range(min=-100000, max=100000)
+        ),
     }
 )
 
@@ -86,7 +96,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: MedicationTrackerConfig
         e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id
     ]
     if not remaining:
-        for svc in (SERVICE_MARK_TAKEN, SERVICE_MARK_SKIPPED, SERVICE_RESET_TODAY):
+        for svc in (
+            SERVICE_MARK_TAKEN,
+            SERVICE_MARK_SKIPPED,
+            SERVICE_RESET_TODAY,
+            SERVICE_ADJUST_STOCK,
+        ):
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)
 
@@ -145,6 +160,17 @@ def _register_services(hass: HomeAssistant, entry: MedicationTrackerConfigEntry)
                 f"Could not reset today's log for medication '{med_id}'."
             )
 
+    async def handle_adjust_stock(call: ServiceCall) -> None:
+        med_id: str = call.data[ATTR_MEDICATION_ID]
+        amount: float = call.data[ATTR_AMOUNT]
+        coordinator = _get_coordinator(hass, med_id)
+        success = await coordinator.async_adjust_stock(med_id, amount)
+        if not success:
+            raise ServiceValidationError(
+                f"Could not adjust stock for medication '{med_id}'. "
+                "Stock tracking may not be enabled for this medication."
+            )
+
     hass.services.async_register(
         DOMAIN, SERVICE_MARK_TAKEN, handle_mark_taken, schema=_MARK_TAKEN_SCHEMA
     )
@@ -153,4 +179,7 @@ def _register_services(hass: HomeAssistant, entry: MedicationTrackerConfigEntry)
     )
     hass.services.async_register(
         DOMAIN, SERVICE_RESET_TODAY, handle_reset_today, schema=_SERVICE_BASE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ADJUST_STOCK, handle_adjust_stock, schema=_ADJUST_STOCK_SCHEMA
     )

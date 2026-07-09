@@ -24,11 +24,14 @@ SUFFIX_DUE = "due"
 SUFFIX_OVERDUE = "overdue"
 SUFFIX_MARK_TAKEN = "mark_taken"
 SUFFIX_MARK_SKIPPED = "mark_skipped"
+SUFFIX_STOCK = "stock"
+SUFFIX_LOW_STOCK = "low_stock"
 
 # Services
 SERVICE_MARK_TAKEN = "mark_taken"
 SERVICE_MARK_SKIPPED = "mark_skipped"
 SERVICE_RESET_TODAY = "reset_today"
+SERVICE_ADJUST_STOCK = "adjust_stock"
 
 # Attr keys used in service calls & state attributes
 ATTR_MEDICATION_ID = "medication_id"
@@ -43,6 +46,17 @@ ATTR_LAST_TAKEN = "last_taken"
 ATTR_NEXT_DOSE = "next_dose"
 ATTR_TAKEN_TODAY = "taken_today"
 ATTR_SKIPPED_TODAY = "skipped_today"
+ATTR_AMOUNT = "amount"
+ATTR_CURRENT_STOCK = "current_stock"
+
+# Stock tracking config keys (per medication, opt-in)
+CONF_STOCK_TRACKING_ENABLED = "stock_tracking_enabled"
+CONF_CURRENT_STOCK = "current_stock"
+CONF_STOCK_PER_DOSE = "stock_per_dose"
+CONF_STOCK_LOW_THRESHOLD = "stock_low_threshold"
+
+DEFAULT_STOCK_PER_DOSE = 1.0
+DEFAULT_STOCK_LOW_THRESHOLD = 5.0
 
 # How many minutes past a scheduled time before it's considered overdue
 OVERDUE_GRACE_MINUTES = 30
@@ -92,6 +106,9 @@ CONF_NOTIF_TAKEN_MESSAGE = "taken_message"
 CONF_NOTIF_DUE_ENABLED = "due_enabled"
 CONF_NOTIF_DUE_TITLE = "due_title"
 CONF_NOTIF_DUE_MESSAGE = "due_message"
+CONF_NOTIF_LOW_STOCK_ENABLED = "low_stock_enabled"
+CONF_NOTIF_LOW_STOCK_TITLE = "low_stock_title"
+CONF_NOTIF_LOW_STOCK_MESSAGE = "low_stock_message"
 
 # Per-medication override keys
 CONF_NOTIF_OVERRIDES = "notification_overrides"
@@ -99,6 +116,7 @@ CONF_NOTIF_OVERRIDE_OVERDUE = "override_overdue"
 CONF_NOTIF_OVERRIDE_DUE_SOON = "override_due_soon"
 CONF_NOTIF_OVERRIDE_TAKEN = "override_taken"
 CONF_NOTIF_OVERRIDE_DUE = "override_due"
+CONF_NOTIF_OVERRIDE_LOW_STOCK = "override_low_stock"
 
 # Default notify target
 DEFAULT_NOTIFY_TARGET = "notify.persistent_notification"
@@ -114,3 +132,5 @@ DEFAULT_TAKEN_TITLE = "{medication} taken"
 DEFAULT_TAKEN_MESSAGE = "{medication} ({dose}) has been marked as taken."
 DEFAULT_DUE_TITLE = "{medication} due now"
 DEFAULT_DUE_MESSAGE = "{medication} ({dose}) is due now."
+DEFAULT_LOW_STOCK_TITLE = "{medication} low on stock"
+DEFAULT_LOW_STOCK_MESSAGE = "{medication} ({dose}) has {stock} unit(s) left — time to restock."

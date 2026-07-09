@@ -14,9 +14,10 @@ Track medications, scheduled doses, streaks, and overdue alerts — entirely loc
 - **Sensors** for next dose time, last taken timestamp, streak (consecutive days taken), and doses taken today
 - **Binary sensors** for overdue detection (with configurable grace period) and due-soon alerts (within 60 minutes) for scheduled meds; availability tracking for PRN meds
 - **Button entities** to mark doses as taken or skipped — appear automatically on the device page
-- **Built-in notifications** — configure overdue, due soon, and taken confirmation alerts directly from the integration, with actionable notifications (Mark taken / Remind in 5 min) on iOS and Android
+- **Optional stock tracking** — record a current stock level per medication and it's automatically decremented each time a dose is taken, with a low-stock sensor and alert so you never run out
+- **Built-in notifications** — configure overdue, due soon, taken confirmation, and low stock alerts directly from the integration, with actionable notifications (Mark taken / Remind in 5 min) on iOS and Android
 - **Per-medication notification overrides** — enable or disable individual alert types per medication, overriding the global settings
-- **Services** to mark doses taken or skipped, and reset today's log
+- **Services** to mark doses taken or skipped, reset today's log, and adjust stock (e.g. after a refill)
 - **Full UI configuration** — add, edit, and remove medications via the Home Assistant UI (no YAML required)
 - **Optional Lovelace card** — a custom dashboard card showing all medications with status and action buttons
 - **Persistent storage** — survives restarts; today's log is pruned automatically at midnight
