@@ -97,7 +97,11 @@ Stock tracking is off by default. To turn it on for a medication, click **Edit**
 
 Once enabled, stock decrements automatically every time a dose is marked taken, and the `stock` sensor / `low_stock` binary sensor start reporting real values instead of `unknown`.
 
-**Restocking:** once tracking is on, don't re-edit the medication to change the stock count — the edit form ignores the Current stock field after the first time (to avoid a stale form value silently overwriting stock that changed while the form was open). Instead use the `medication_tracker.adjust_stock` service (see [Services](#services)) to add stock after a refill or correct a miscount.
+**Restocking:** once tracking is on, don't re-edit the medication to change the stock count — the edit form ignores the Current stock field after the first time (to avoid a stale form value silently overwriting stock that changed while the form was open). Instead, top up stock one of these ways:
+
+- **Device page** — open the medication's device (Settings → Devices & Services → Medication Tracker → the medication), and set the **Stock** control under Controls directly to a new value
+- **Lovelace card** — click **Top up stock** on the medication's card, which opens the same Stock control
+- **Service** — call `medication_tracker.adjust_stock` (see [Services](#services)) to add or subtract an amount, handy for automations (e.g. after scanning a barcode)
 
 ### Notifications
 
@@ -149,6 +153,7 @@ After configuring global notification settings, choose **Per-medication override
 | `binary_sensor.<name>_due_soon` | `on` when the next dose is within 60 minutes |
 | `sensor.<name>_stock` | Current stock level (`unknown` unless [stock tracking](#stock-tracking-optional) is enabled) |
 | `binary_sensor.<name>_low_stock` | `on` when stock is at or below the low-stock threshold |
+| `number.<name>_stock` | Editable stock control — set directly to top up or correct stock; unavailable unless stock tracking is enabled |
 | `button.<name>_mark_taken` | Mark the current dose as taken |
 | `button.<name>_mark_skipped` | Mark the current dose as skipped |
 
@@ -163,6 +168,7 @@ After configuring global notification settings, choose **Per-medication override
 | `binary_sensor.<name>_available` | `on` when the medication is within all dose limits and can be taken |
 | `sensor.<name>_stock` | Current stock level (`unknown` unless [stock tracking](#stock-tracking-optional) is enabled) |
 | `binary_sensor.<name>_low_stock` | `on` when stock is at or below the low-stock threshold |
+| `number.<name>_stock` | Editable stock control — set directly to top up or correct stock; unavailable unless stock tracking is enabled |
 | `button.<name>_mark_taken` | Record a dose taken now |
 | `button.<name>_mark_skipped` | Mark a dose as skipped |
 
@@ -224,7 +230,7 @@ Clear all taken/skipped entries for today for a given medication.
 
 ### `medication_tracker.adjust_stock`
 
-Add to or subtract from a medication's current stock level — use this to restock after a refill or correct a miscount, rather than re-editing the medication. Only works for medications with [stock tracking](#stock-tracking-optional) enabled.
+Add to or subtract from a medication's current stock level — handy for automations (e.g. after scanning a barcode). For manual restocking, it's usually quicker to set the `number.<name>_stock` control directly from the device page or the **Top up stock** button on the Lovelace card (see [Stock tracking](#stock-tracking-optional)). Only works for medications with stock tracking enabled.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
@@ -235,7 +241,7 @@ Add to or subtract from a medication's current stock level — use this to resto
 
 ## Optional: Lovelace Dashboard Card
 
-A custom card is available that shows all your medications in one place, including status, next dose time, last taken, streak, doses taken today, and Mark taken / Skip dose buttons.
+A custom card is available that shows all your medications in one place, including status, next dose time, last taken, streak, doses taken today, and Mark taken / Skip dose buttons. Medications with stock tracking enabled also show the current stock level and a **Top up stock** button.
 
 ![Medication Tracker Lovelace Card](docs/lovelace-card.png)
 

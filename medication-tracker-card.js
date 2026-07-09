@@ -43,6 +43,9 @@ class MedicationTrackerCard extends HTMLElement {
         taken_today: get("sensor", "taken_today"),
         overdue: get("binary_sensor", "overdue"),
         due_soon: get("binary_sensor", "due_soon"),
+        stock: get("sensor", "stock"),
+        low_stock: get("binary_sensor", "low_stock"),
+        stock_number: get("number", "stock"),
         btn_taken: get("button", "mark_taken"),
         btn_skipped: get("button", "mark_skipped"),
       };
@@ -61,6 +64,9 @@ class MedicationTrackerCard extends HTMLElement {
         last_taken: get("sensor", "last_taken"),
         streak: get("sensor", "streak"),
         taken_today: get("sensor", "taken_today"),
+        stock: get("sensor", "stock"),
+        low_stock: get("binary_sensor", "low_stock"),
+        stock_number: get("number", "stock"),
         btn_taken: get("button", "mark_taken"),
         btn_skipped: get("button", "mark_skipped"),
       };
@@ -82,13 +88,36 @@ class MedicationTrackerCard extends HTMLElement {
     } catch { return "—"; }
   }
 
+  _hasStock(med) {
+    const s = med.stock?.state;
+    return !!(med.stock_number && s && s !== "unknown" && s !== "unavailable");
+  }
+
+  _renderStockStat(med) {
+    if (!this._hasStock(med)) return "";
+    const isLow = med.low_stock?.state === "on";
+    return `
+      <div class="stat">
+        <span class="stat-label">Stock</span>
+        <span class="stat-value${isLow ? " stat-low-stock" : ""}">${med.stock.state}${isLow ? " ⚠️" : ""}</span>
+      </div>
+    `;
+  }
+
+  _renderTopUpButton(med) {
+    if (!this._hasStock(med)) return "";
+    return `<button class="btn btn-topup" data-entity="number.${med.base}_stock">Top up stock</button>`;
+  }
+
   _renderScheduledMed(med) {
     const isOverdue = med.overdue?.state === "on";
     const isDueSoon = med.due_soon?.state === "on";
+    const isLowStock = med.low_stock?.state === "on";
     let rowClass = "med-row";
     let badge = `<span class="status-badge badge-ok">On track</span>`;
     if (isOverdue) { rowClass += " overdue"; badge = `<span class="status-badge badge-overdue">Overdue</span>`; }
     else if (isDueSoon) { rowClass += " due-soon"; badge = `<span class="status-badge badge-due-soon">Due soon</span>`; }
+    if (isLowStock) badge += `<span class="status-badge badge-low-stock">Low stock</span>`;
 
     const nextDose = this._formatRelative(med.next_dose?.state);
     const lastTaken = this._formatRelative(med.last_taken?.state);
@@ -106,10 +135,12 @@ class MedicationTrackerCard extends HTMLElement {
           <div class="stat"><span class="stat-label">Last taken</span><span class="stat-value">${lastTaken}</span></div>
           <div class="stat"><span class="stat-label">Streak</span><span class="stat-value">${streak} day${streak === "1" ? "" : "s"}</span></div>
           <div class="stat"><span class="stat-label">Taken today</span><span class="stat-value">${takenToday} / ${scheduledToday}</span></div>
+          ${this._renderStockStat(med)}
         </div>
         <div class="actions">
           ${btnTakenId ? `<button class="btn btn-taken" data-entity="${btnTakenId}">Mark taken</button>` : ""}
           ${btnSkippedId ? `<button class="btn btn-skipped" data-entity="${btnSkippedId}">Skip dose</button>` : ""}
+          ${this._renderTopUpButton(med)}
         </div>
       </div>
     `;
@@ -122,6 +153,7 @@ class MedicationTrackerCard extends HTMLElement {
     const takenToday = med.taken_today?.state ?? "0";
     const lastTaken = this._formatRelative(med.last_taken?.state);
     const btnTakenId = med.btn_taken ? `button.${med.base}_mark_taken` : null;
+    const isLowStock = med.low_stock?.state === "on";
 
     let rowClass = "med-row";
     let badge;
@@ -140,6 +172,7 @@ class MedicationTrackerCard extends HTMLElement {
       badge = `<span class="status-badge badge-waiting">Available ${countdown}</span>`;
       availabilityInfo = `Next available ${countdown}`;
     }
+    if (isLowStock) badge += `<span class="status-badge badge-low-stock">Low stock</span>`;
 
     return `
       <div class="${rowClass}">
@@ -148,9 +181,11 @@ class MedicationTrackerCard extends HTMLElement {
           <div class="stat"><span class="stat-label">Availability</span><span class="stat-value">${availabilityInfo}</span></div>
           <div class="stat"><span class="stat-label">Last taken</span><span class="stat-value">${lastTaken}</span></div>
           <div class="stat"><span class="stat-label">Taken today</span><span class="stat-value">${takenToday} / ${maxPerDay}</span></div>
+          ${this._renderStockStat(med)}
         </div>
         <div class="actions">
           ${btnTakenId ? `<button class="btn btn-taken${isAvailable ? "" : " btn-disabled"}" data-entity="${btnTakenId}" ${isAvailable ? "" : "disabled"}>Mark taken</button>` : ""}
+          ${this._renderTopUpButton(med)}
         </div>
       </div>
     `;
@@ -174,6 +209,17 @@ class MedicationTrackerCard extends HTMLElement {
   async _callButton(entityId) {
     if (!this._hass) return;
     await this._hass.callService("button", "press", { entity_id: entityId });
+  }
+
+  _openMoreInfo(entityId) {
+    // Opens HA's built-in more-info dialog for the stock number entity, which
+    // has its own +/- controls for topping up or correcting stock — no need
+    // to hand-roll an amount prompt here.
+    this.dispatchEvent(new CustomEvent("hass-more-info", {
+      bubbles: true,
+      composed: true,
+      detail: { entityId },
+    }));
   }
 
   _render() {
@@ -208,6 +254,9 @@ class MedicationTrackerCard extends HTMLElement {
       .badge-waiting { background: var(--warning-color, #ffa600); color: white; }
       .badge-limit { background: var(--error-color, #db4437); color: white; }
       .btn-disabled { opacity: 0.4; cursor: not-allowed; }
+      .badge-low-stock { background: var(--warning-color, #ffa600); color: white; }
+      .stat-low-stock { color: var(--warning-color, #ffa600); }
+      .btn-topup { background: var(--secondary-background-color, #f5f5f5); color: var(--primary-text-color); border: 1px solid var(--divider-color, #e0e0e0); flex: 0 0 auto; padding: 7px 12px; }
     `;
 
     let rows;
@@ -231,7 +280,11 @@ class MedicationTrackerCard extends HTMLElement {
     `;
 
     this.shadowRoot.querySelectorAll(".btn[data-entity]").forEach(btn => {
-      btn.addEventListener("click", () => this._callButton(btn.dataset.entity));
+      if (btn.classList.contains("btn-topup")) {
+        btn.addEventListener("click", () => this._openMoreInfo(btn.dataset.entity));
+      } else {
+        btn.addEventListener("click", () => this._callButton(btn.dataset.entity));
+      }
     });
   }
 

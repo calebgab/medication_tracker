@@ -338,12 +338,23 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_adjust_stock(self, med_id: str, amount: float) -> bool:
         """Add to (or subtract from) a medication's current stock level."""
+        med = self.get_medication(med_id)
+        if not med or not med.get(CONF_STOCK_TRACKING_ENABLED):
+            return False
+        current = med.get(CONF_CURRENT_STOCK) or 0
+        return await self._async_write_stock(med_id, current + amount)
+
+    async def async_set_stock(self, med_id: str, value: float) -> bool:
+        """Set a medication's current stock to an absolute value."""
+        med = self.get_medication(med_id)
+        if not med or not med.get(CONF_STOCK_TRACKING_ENABLED):
+            return False
+        return await self._async_write_stock(med_id, value)
+
+    async def _async_write_stock(self, med_id: str, new_value: float) -> bool:
         for i, med in enumerate(self._medications):
             if med["id"] == med_id:
-                if not med.get(CONF_STOCK_TRACKING_ENABLED):
-                    return False
-                current = med.get(CONF_CURRENT_STOCK) or 0
-                new_stock = max(0.0, round(current + amount, 2))
+                new_stock = max(0.0, round(new_value, 2))
                 self._medications[i] = {**med, CONF_CURRENT_STOCK: new_stock}
                 await self._async_save()
                 await self.async_refresh()
