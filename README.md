@@ -84,6 +84,21 @@ As-needed medications have no fixed schedule. Instead you configure dose limits 
 
 When any limit is reached the `available` binary sensor turns `off` and the `next_available` sensor shows when the medication can next be taken.
 
+### Stock tracking (optional)
+
+Stock tracking is off by default. To turn it on for a medication, click **Edit** on it, fill in the first screen (name/dose/type/notes) and continue — the stock fields are on the *next* screen, alongside the scheduled times/days (or as-needed dose limits):
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| Track stock for this medication | Enables stock tracking for this medication | *(toggle)* |
+| Current stock | Starting quantity on hand | `30` |
+| Units used per dose | How much to subtract from stock each time a dose is marked taken | `1` |
+| Alert when stock falls to or below | Threshold at which the medication is considered low on stock | `5` |
+
+Once enabled, stock decrements automatically every time a dose is marked taken, and the `stock` sensor / `low_stock` binary sensor start reporting real values instead of `unknown`.
+
+**Restocking:** once tracking is on, don't re-edit the medication to change the stock count — the edit form ignores the Current stock field after the first time (to avoid a stale form value silently overwriting stock that changed while the form was open). Instead use the `medication_tracker.adjust_stock` service (see [Services](#services)) to add stock after a refill or correct a miscount.
+
 ### Notifications
 
 Click **Configure** on the integration card, then choose **Notifications** to set up alerts. No automations required — notifications are fired directly by the integration.
@@ -96,8 +111,11 @@ Click **Configure** on the integration card, then choose **Notifications** to se
 | Overdue delay | Extra minutes to wait after the grace period before notifying (0 = immediate) |
 | Alert when due soon | Send a notification when a dose is due within 60 minutes |
 | Taken confirmation | Send a notification when a dose is marked as taken |
+| Alert when stock is low | Send a notification when a medication's stock falls to or below its configured threshold (applies to both scheduled and as-needed medications; requires [stock tracking](#stock-tracking-optional) to be enabled for that medication) |
 
 Notifications on iOS and Android include **Mark taken** and **Remind in 5 min** action buttons. Tapping Mark taken updates the sensors immediately without opening the app.
+
+The low stock alert fires once when stock crosses the threshold and won't repeat until you restock above it (via the `adjust_stock` service) and it drops low again.
 
 After the global settings, you can also customise the notification title and message templates for each alert type.
 
@@ -113,6 +131,7 @@ After configuring global notification settings, choose **Per-medication override
 | `{dose}` | Dose description |
 | `{time}` | Scheduled time |
 | `{overdue_since}` | Time the dose became overdue |
+| `{stock}` | Remaining stock quantity (low stock message only) |
 
 ---
 
@@ -128,6 +147,8 @@ After configuring global notification settings, choose **Per-medication override
 | `sensor.<name>_taken_today` | Number of doses taken today |
 | `binary_sensor.<name>_overdue` | `on` when a scheduled dose is past its grace period with no entry |
 | `binary_sensor.<name>_due_soon` | `on` when the next dose is within 60 minutes |
+| `sensor.<name>_stock` | Current stock level (`unknown` unless [stock tracking](#stock-tracking-optional) is enabled) |
+| `binary_sensor.<name>_low_stock` | `on` when stock is at or below the low-stock threshold |
 | `button.<name>_mark_taken` | Mark the current dose as taken |
 | `button.<name>_mark_skipped` | Mark the current dose as skipped |
 
@@ -140,6 +161,8 @@ After configuring global notification settings, choose **Per-medication override
 | `sensor.<name>_streak` | Consecutive days with at least one dose taken |
 | `sensor.<name>_taken_today` | Number of doses taken today |
 | `binary_sensor.<name>_available` | `on` when the medication is within all dose limits and can be taken |
+| `sensor.<name>_stock` | Current stock level (`unknown` unless [stock tracking](#stock-tracking-optional) is enabled) |
+| `binary_sensor.<name>_low_stock` | `on` when stock is at or below the low-stock threshold |
 | `button.<name>_mark_taken` | Record a dose taken now |
 | `button.<name>_mark_skipped` | Mark a dose as skipped |
 
@@ -158,6 +181,15 @@ The `next_available` sensor includes:
 - `as_needed_max_per_day` — configured daily maximum
 - `as_needed_max_per_24h` — configured 24-hour rolling maximum
 - `as_needed_min_hours` — configured minimum gap between doses
+
+The `stock` sensor includes:
+- `stock_tracking_enabled` — whether tracking is on for this medication
+- `stock_per_dose` — configured units subtracted per dose
+- `stock_low_threshold` — configured low-stock threshold
+
+The `low_stock` binary sensor includes:
+- `current_stock` — the current stock quantity
+- `stock_low_threshold` — configured low-stock threshold
 
 ---
 
@@ -189,6 +221,15 @@ Clear all taken/skipped entries for today for a given medication.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `medication_id` | ✅ | The medication's unique ID |
+
+### `medication_tracker.adjust_stock`
+
+Add to or subtract from a medication's current stock level — use this to restock after a refill or correct a miscount, rather than re-editing the medication. Only works for medications with [stock tracking](#stock-tracking-optional) enabled.
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `medication_id` | ✅ | The medication's unique ID |
+| `amount` | ✅ | Quantity to add (positive) or remove (negative), e.g. `30` after a refill |
 
 ---
 
