@@ -111,6 +111,17 @@ CONF_NOTIF_LOW_STOCK_ENABLED = "low_stock_enabled"
 CONF_NOTIF_LOW_STOCK_TITLE = "low_stock_title"
 CONF_NOTIF_LOW_STOCK_MESSAGE = "low_stock_message"
 
+# Per-alert-type sound toggle (iOS only — Android sound is channel-based and
+# can't be controlled per-notification via the payload)
+CONF_NOTIF_DUE_SOUND_ENABLED = "due_sound_enabled"
+CONF_NOTIF_OVERDUE_SOUND_ENABLED = "overdue_sound_enabled"
+CONF_NOTIF_DUE_SOON_SOUND_ENABLED = "due_soon_sound_enabled"
+CONF_NOTIF_TAKEN_SOUND_ENABLED = "taken_sound_enabled"
+CONF_NOTIF_LOW_STOCK_SOUND_ENABLED = "low_stock_sound_enabled"
+DEFAULT_SOUND_ENABLED = True
+# Value sent as data.push.sound to mute an iOS notification
+IOS_SILENT_SOUND = ""
+
 # Per-medication override keys
 CONF_NOTIF_OVERRIDES = "notification_overrides"
 CONF_NOTIF_OVERRIDE_OVERDUE = "override_overdue"

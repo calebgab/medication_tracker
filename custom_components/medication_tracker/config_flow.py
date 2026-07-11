@@ -26,14 +26,18 @@ from .const import (
     CONF_NOTIF_DUE_MESSAGE,
     CONF_NOTIF_DUE_SOON_ENABLED,
     CONF_NOTIF_DUE_SOON_MESSAGE,
+    CONF_NOTIF_DUE_SOON_SOUND_ENABLED,
     CONF_NOTIF_DUE_SOON_TITLE,
+    CONF_NOTIF_DUE_SOUND_ENABLED,
     CONF_NOTIF_DUE_TITLE,
     CONF_NOTIF_LOW_STOCK_ENABLED,
     CONF_NOTIF_LOW_STOCK_MESSAGE,
+    CONF_NOTIF_LOW_STOCK_SOUND_ENABLED,
     CONF_NOTIF_LOW_STOCK_TITLE,
     CONF_NOTIF_OVERDUE_DELAY,
     CONF_NOTIF_OVERDUE_ENABLED,
     CONF_NOTIF_OVERDUE_MESSAGE,
+    CONF_NOTIF_OVERDUE_SOUND_ENABLED,
     CONF_NOTIF_OVERDUE_TITLE,
     CONF_NOTIF_OVERRIDE_DUE,
     CONF_NOTIF_OVERRIDE_DUE_SOON,
@@ -43,6 +47,7 @@ from .const import (
     CONF_NOTIF_OVERRIDES,
     CONF_NOTIF_TAKEN_ENABLED,
     CONF_NOTIF_TAKEN_MESSAGE,
+    CONF_NOTIF_TAKEN_SOUND_ENABLED,
     CONF_NOTIF_TAKEN_TITLE,
     CONF_NOTIF_TARGET,
     CONF_STOCK_LOW_THRESHOLD,
@@ -61,6 +66,7 @@ from .const import (
     DEFAULT_OVERDUE_DELAY,
     DEFAULT_OVERDUE_MESSAGE,
     DEFAULT_OVERDUE_TITLE,
+    DEFAULT_SOUND_ENABLED,
     DEFAULT_STOCK_LOW_THRESHOLD,
     DEFAULT_STOCK_PER_DOSE,
     DEFAULT_TAKEN_MESSAGE,
@@ -691,6 +697,9 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_DUE_MESSAGE: user_input.get(
                     CONF_NOTIF_DUE_MESSAGE, DEFAULT_DUE_MESSAGE
                 ),
+                CONF_NOTIF_DUE_SOUND_ENABLED: user_input.get(
+                    CONF_NOTIF_DUE_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+                ),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -707,6 +716,10 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_DUE_MESSAGE,
                         default=cfg.get(CONF_NOTIF_DUE_MESSAGE, DEFAULT_DUE_MESSAGE),
                     ): str,
+                    vol.Optional(
+                        CONF_NOTIF_DUE_SOUND_ENABLED,
+                        default=cfg.get(CONF_NOTIF_DUE_SOUND_ENABLED, DEFAULT_SOUND_ENABLED),
+                    ): bool,
                 }
             ),
         )
@@ -730,6 +743,9 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_OVERDUE_MESSAGE: user_input.get(
                     CONF_NOTIF_OVERDUE_MESSAGE, DEFAULT_OVERDUE_MESSAGE
                 ),
+                CONF_NOTIF_OVERDUE_SOUND_ENABLED: user_input.get(
+                    CONF_NOTIF_OVERDUE_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+                ),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -746,6 +762,10 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_OVERDUE_MESSAGE,
                         default=cfg.get(CONF_NOTIF_OVERDUE_MESSAGE, DEFAULT_OVERDUE_MESSAGE),
                     ): str,
+                    vol.Optional(
+                        CONF_NOTIF_OVERDUE_SOUND_ENABLED,
+                        default=cfg.get(CONF_NOTIF_OVERDUE_SOUND_ENABLED, DEFAULT_SOUND_ENABLED),
+                    ): bool,
                 }
             ),
         )
@@ -769,6 +789,9 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_DUE_SOON_MESSAGE: user_input.get(
                     CONF_NOTIF_DUE_SOON_MESSAGE, DEFAULT_DUE_SOON_MESSAGE
                 ),
+                CONF_NOTIF_DUE_SOON_SOUND_ENABLED: user_input.get(
+                    CONF_NOTIF_DUE_SOON_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+                ),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -785,6 +808,12 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_DUE_SOON_MESSAGE,
                         default=cfg.get(CONF_NOTIF_DUE_SOON_MESSAGE, DEFAULT_DUE_SOON_MESSAGE),
                     ): str,
+                    vol.Optional(
+                        CONF_NOTIF_DUE_SOON_SOUND_ENABLED,
+                        default=cfg.get(
+                            CONF_NOTIF_DUE_SOON_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+                        ),
+                    ): bool,
                 }
             ),
         )
@@ -808,6 +837,9 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_TAKEN_MESSAGE: user_input.get(
                     CONF_NOTIF_TAKEN_MESSAGE, DEFAULT_TAKEN_MESSAGE
                 ),
+                CONF_NOTIF_TAKEN_SOUND_ENABLED: user_input.get(
+                    CONF_NOTIF_TAKEN_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+                ),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -824,6 +856,10 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_TAKEN_MESSAGE,
                         default=cfg.get(CONF_NOTIF_TAKEN_MESSAGE, DEFAULT_TAKEN_MESSAGE),
                     ): str,
+                    vol.Optional(
+                        CONF_NOTIF_TAKEN_SOUND_ENABLED,
+                        default=cfg.get(CONF_NOTIF_TAKEN_SOUND_ENABLED, DEFAULT_SOUND_ENABLED),
+                    ): bool,
                 }
             ),
         )
@@ -847,6 +883,9 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_LOW_STOCK_MESSAGE: user_input.get(
                     CONF_NOTIF_LOW_STOCK_MESSAGE, DEFAULT_LOW_STOCK_MESSAGE
                 ),
+                CONF_NOTIF_LOW_STOCK_SOUND_ENABLED: user_input.get(
+                    CONF_NOTIF_LOW_STOCK_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+                ),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -863,6 +902,12 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_LOW_STOCK_MESSAGE,
                         default=cfg.get(CONF_NOTIF_LOW_STOCK_MESSAGE, DEFAULT_LOW_STOCK_MESSAGE),
                     ): str,
+                    vol.Optional(
+                        CONF_NOTIF_LOW_STOCK_SOUND_ENABLED,
+                        default=cfg.get(
+                            CONF_NOTIF_LOW_STOCK_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+                        ),
+                    ): bool,
                 }
             ),
         )

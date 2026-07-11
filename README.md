@@ -121,7 +121,9 @@ Notifications on iOS and Android include **Mark taken** and **Remind in 5 min** 
 
 The low stock alert fires once when stock crosses the threshold and won't repeat until you restock above it (via the `adjust_stock` service) and it drops low again.
 
-After the global settings, you can also customise the notification title and message templates for each alert type.
+After the global settings, you can also customise the notification title and message templates for each alert type — and, alongside each template, a **Play a sound** toggle for that alert type (on by default, matching prior behaviour).
+
+**Sound is iOS-only.** Turning it off mutes that alert type's push notification on iOS. Android notification sound is controlled by the OS's notification channels, not the app payload, so this toggle has no effect there — configure sound per-channel in your device's own notification settings (Settings → Apps → Home Assistant → Notifications) instead.
 
 #### Per-medication notification overrides
 

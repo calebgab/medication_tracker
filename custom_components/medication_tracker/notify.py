@@ -16,14 +16,18 @@ from .const import (
     CONF_NOTIF_DUE_MESSAGE,
     CONF_NOTIF_DUE_SOON_ENABLED,
     CONF_NOTIF_DUE_SOON_MESSAGE,
+    CONF_NOTIF_DUE_SOON_SOUND_ENABLED,
     CONF_NOTIF_DUE_SOON_TITLE,
+    CONF_NOTIF_DUE_SOUND_ENABLED,
     CONF_NOTIF_DUE_TITLE,
     CONF_NOTIF_LOW_STOCK_ENABLED,
     CONF_NOTIF_LOW_STOCK_MESSAGE,
+    CONF_NOTIF_LOW_STOCK_SOUND_ENABLED,
     CONF_NOTIF_LOW_STOCK_TITLE,
     CONF_NOTIF_OVERDUE_DELAY,
     CONF_NOTIF_OVERDUE_ENABLED,
     CONF_NOTIF_OVERDUE_MESSAGE,
+    CONF_NOTIF_OVERDUE_SOUND_ENABLED,
     CONF_NOTIF_OVERDUE_TITLE,
     CONF_NOTIF_OVERRIDE_DUE,
     CONF_NOTIF_OVERRIDE_DUE_SOON,
@@ -33,6 +37,7 @@ from .const import (
     CONF_NOTIF_OVERRIDES,
     CONF_NOTIF_TAKEN_ENABLED,
     CONF_NOTIF_TAKEN_MESSAGE,
+    CONF_NOTIF_TAKEN_SOUND_ENABLED,
     CONF_NOTIF_TAKEN_TITLE,
     CONF_NOTIF_TARGET,
     DEFAULT_DUE_MESSAGE,
@@ -45,8 +50,10 @@ from .const import (
     DEFAULT_OVERDUE_DELAY,
     DEFAULT_OVERDUE_MESSAGE,
     DEFAULT_OVERDUE_TITLE,
+    DEFAULT_SOUND_ENABLED,
     DEFAULT_TAKEN_MESSAGE,
     DEFAULT_TAKEN_TITLE,
+    IOS_SILENT_SOUND,
 )
 
 from .coordinator import extract_scheduled_time
@@ -79,14 +86,14 @@ def _is_ios(hass: HomeAssistant, target: str) -> bool:
     return False
 
 
-def _build_action_data(hass: HomeAssistant, target: str, med_id: str) -> dict[str, Any]:
+def _build_action_data(is_ios: bool, med_id: str) -> dict[str, Any]:
     """Build platform-appropriate action data for an actionable notification."""
     # Encode med_id in the action identifier so it comes back in the event response
     actions = [
         {"action": f"{ACTION_MARK_TAKEN_PREFIX}{med_id}", "title": "Mark taken"},
         {"action": f"{ACTION_REMIND_PREFIX}{med_id}", "title": "Remind in 5 min"},
     ]
-    if _is_ios(hass, target):
+    if is_ios:
         return {
             "actions": actions,
             "push": {"category": "MEDICATION_ALERT"},
@@ -183,6 +190,9 @@ class MedicationNotifier:
                     },
                     med_id=med_id,
                     actionable=True,
+                    sound_enabled=notif_config.get(
+                        CONF_NOTIF_OVERDUE_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+                    ),
                 )
             )
 
@@ -251,6 +261,7 @@ class MedicationNotifier:
             },
             med_id=med_id,
             actionable=False,
+            sound_enabled=notif_config.get(CONF_NOTIF_TAKEN_SOUND_ENABLED, DEFAULT_SOUND_ENABLED),
         )
 
     # ------------------------------------------------------------------
@@ -296,6 +307,7 @@ class MedicationNotifier:
             },
             med_id=med["id"],
             actionable=True,
+            sound_enabled=notif_config.get(CONF_NOTIF_DUE_SOUND_ENABLED, DEFAULT_SOUND_ENABLED),
         )
         self._fired.add(fire_key)
 
@@ -353,6 +365,7 @@ class MedicationNotifier:
             },
             med_id=med["id"],
             actionable=True,
+            sound_enabled=notif_config.get(CONF_NOTIF_OVERDUE_SOUND_ENABLED, DEFAULT_SOUND_ENABLED),
         )
         self._fired.add(fire_key)
 
@@ -395,6 +408,9 @@ class MedicationNotifier:
             },
             med_id=med["id"],
             actionable=True,
+            sound_enabled=notif_config.get(
+                CONF_NOTIF_DUE_SOON_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+            ),
         )
         self._fired.add(fire_key)
 
@@ -439,6 +455,9 @@ class MedicationNotifier:
             },
             med_id=med["id"],
             actionable=False,
+            sound_enabled=notif_config.get(
+                CONF_NOTIF_LOW_STOCK_SOUND_ENABLED, DEFAULT_SOUND_ENABLED
+            ),
         )
         self._low_stock_fired.add(med_id)
 
@@ -454,6 +473,7 @@ class MedicationNotifier:
         placeholders: dict[str, str],
         med_id: str = "",
         actionable: bool = False,
+        sound_enabled: bool = True,
     ) -> None:
         """Render templates and call the notify service."""
         target = notif_config.get(CONF_NOTIF_TARGET, DEFAULT_NOTIFY_TARGET)
@@ -468,8 +488,16 @@ class MedicationNotifier:
 
         service_data: dict[str, Any] = {"title": title, "message": message}
 
+        is_ios = _is_ios(self._hass, target)
+        data: dict[str, Any] = {}
         if actionable and med_id and target != DEFAULT_NOTIFY_TARGET:
-            service_data["data"] = _build_action_data(self._hass, target, med_id)
+            data.update(_build_action_data(is_ios, med_id))
+        if not sound_enabled and is_ios:
+            # Android sound is channel-based and can't be muted per-notification
+            # via the payload, so this only takes effect on iOS.
+            data["push"] = {**data.get("push", {}), "sound": IOS_SILENT_SOUND}
+        if data:
+            service_data["data"] = data
 
         _LOGGER.debug(
             "Sending notification via %s: title=%r, actionable=%s", target, title, actionable

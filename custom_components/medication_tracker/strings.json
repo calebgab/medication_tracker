@@ -65,7 +65,8 @@
         "description": "Customise the message sent when a dose is due.",
         "data": {
           "due_title": "Notification title",
-          "due_message": "Notification message"
+          "due_message": "Notification message",
+          "due_sound_enabled": "Play a sound (iOS only — Android sound is set in your device's notification settings)"
         }
       },
       "notification_overdue_message": {
@@ -73,7 +74,8 @@
         "description": "Customise the message sent when a dose is overdue.",
         "data": {
           "overdue_title": "Notification title",
-          "overdue_message": "Notification message"
+          "overdue_message": "Notification message",
+          "overdue_sound_enabled": "Play a sound (iOS only — Android sound is set in your device's notification settings)"
         }
       },
       "notification_due_soon_message": {
@@ -81,7 +83,8 @@
         "description": "Customise the message sent when a dose is due soon.",
         "data": {
           "due_soon_title": "Notification title",
-          "due_soon_message": "Notification message"
+          "due_soon_message": "Notification message",
+          "due_soon_sound_enabled": "Play a sound (iOS only — Android sound is set in your device's notification settings)"
         }
       },
       "notification_taken_message": {
@@ -89,7 +92,8 @@
         "description": "Customise the message sent when a dose is marked as taken.",
         "data": {
           "taken_title": "Notification title",
-          "taken_message": "Notification message"
+          "taken_message": "Notification message",
+          "taken_sound_enabled": "Play a sound (iOS only — Android sound is set in your device's notification settings)"
         }
       },
       "notification_low_stock_message": {
@@ -97,7 +101,8 @@
         "description": "Customise the message sent when a medication's stock runs low. You can use {stock} to show the remaining quantity.",
         "data": {
           "low_stock_title": "Notification title",
-          "low_stock_message": "Notification message"
+          "low_stock_message": "Notification message",
+          "low_stock_sound_enabled": "Play a sound (iOS only — Android sound is set in your device's notification settings)"
         }
       },
       "notification_per_medication": {
