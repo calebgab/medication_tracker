@@ -245,15 +245,19 @@ A custom card is available that shows all your medications in one place, includi
 
 ![Medication Tracker Lovelace Card](docs/lovelace-card.png)
 
-> **Note:** This card is optional and requires a one-time manual step. It is not installed automatically by HACS.
+> **Note:** This card is optional and requires a manual step, and unlike the integration itself it is **not** kept up to date by HACS — HACS only manages `custom_components/medication_tracker/`. Whenever this file changes, you need to re-copy it yourself (see below).
 
 ### Installation
 
-1. Copy `www/medication-tracker-card.js` from this directory into your Home Assistant `www` folder (i.e. `config/www/medication-tracker-card.js`)
+1. Copy `medication-tracker-card.js` from the root of this repository into your Home Assistant `www` folder (i.e. `config/www/medication-tracker-card.js`) — via the File editor/Studio Code Server add-on, Samba, or `curl -o config/www/medication-tracker-card.js https://raw.githubusercontent.com/calebgab/medication_tracker/main/medication-tracker-card.js` from the Terminal add-on
 2. Go to **Settings → Dashboards → Resources**
 3. Click **Add resource**
 4. Set URL to `/local/medication-tracker-card.js` and type to **JavaScript module**
 5. Click **Create** then reload the page
+
+### Updating the card
+
+Because HACS doesn't manage this file, updating the integration via HACS does **not** update the card. After an update that touches `medication-tracker-card.js` (check the [releases](https://github.com/calebgab/medication_tracker/releases) or recent commits), repeat step 1 above to overwrite your local copy, then hard-refresh your browser (`Ctrl+Shift+R` / `Cmd+Shift+R`) — the frontend caches this file aggressively, so a HA restart alone often isn't enough.
 
 ### Adding the card to a dashboard
 
