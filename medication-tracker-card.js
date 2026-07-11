@@ -27,9 +27,9 @@ class MedicationTrackerCard extends HTMLElement {
     }
     for (const med of this._medications) {
       console.log(`Medication: ${med.name} (base="${med.base}")`, {
-        [`sensor.${med.base}_stock`]: med.stock ? med.stock.state : "NOT FOUND in hass.states",
-        [`binary_sensor.${med.base}_low_stock`]: med.low_stock ? med.low_stock.state : "NOT FOUND in hass.states",
-        [`number.${med.base}_stock`]: med.stock_number ? med.stock_number.state : "NOT FOUND in hass.states",
+        stock: med.stock ? `${med.stock.entity_id} = ${med.stock.state}` : "NOT FOUND",
+        low_stock: med.low_stock ? `${med.low_stock.entity_id} = ${med.low_stock.state}` : "NOT FOUND",
+        stock_number: med.stock_number ? `${med.stock_number.entity_id} = ${med.stock_number.state}` : "NOT FOUND",
         hasStock_result: this._hasStock(med),
       });
     }
@@ -40,9 +40,77 @@ class MedicationTrackerCard extends HTMLElement {
     this._config = config || {};
   }
 
+  // Finds a sibling entity for the same medication as the given base/device.
+  // Prefers matching by shared device (robust against entity_id naming drift,
+  // e.g. legacy entities registered before a device rename), falling back to
+  // guessing "<base>_<suffix>" for older HA frontends without hass.entities.
+  _findEntityId(base, domain, suffix, deviceEntityIds) {
+    const states = this._hass.states;
+    if (deviceEntityIds) {
+      const match = deviceEntityIds.find(
+        (eid) => eid.startsWith(`${domain}.`) && eid.endsWith(`_${suffix}`)
+      );
+      if (match) return match;
+    }
+    const guessed = `${domain}.${base}_${suffix}`;
+    return states[guessed] ? guessed : null;
+  }
+
+  _buildMed(entityId, state, stripSuffix, nameStripRegex, medType, byDevice) {
+    const states = this._hass.states;
+    const base = entityId.replace("sensor.", "").replace(stripSuffix, "");
+    const friendlyBase = state.attributes.friendly_name?.replace(nameStripRegex, "") || base;
+    const registryEntry = this._hass.entities && this._hass.entities[entityId];
+    const deviceEntityIds = registryEntry && byDevice[registryEntry.device_id];
+
+    const get = (domain, suffix) => {
+      const eid = this._findEntityId(base, domain, suffix, deviceEntityIds);
+      return eid ? states[eid] : null;
+    };
+
+    const common = {
+      name: friendlyBase,
+      base,
+      last_taken: get("sensor", "last_taken"),
+      streak: get("sensor", "streak"),
+      taken_today: get("sensor", "taken_today"),
+      stock: get("sensor", "stock"),
+      low_stock: get("binary_sensor", "low_stock"),
+      stock_number: get("number", "stock"),
+      btn_taken: get("button", "mark_taken"),
+      btn_skipped: get("button", "mark_skipped"),
+    };
+
+    if (medType === "as_needed") {
+      return {
+        ...common,
+        med_type: "as_needed",
+        next_available: state,
+        available: get("binary_sensor", "available"),
+      };
+    }
+    return {
+      ...common,
+      med_type: "scheduled",
+      next_dose: state,
+      overdue: get("binary_sensor", "overdue"),
+      due_soon: get("binary_sensor", "due_soon"),
+    };
+  }
+
   _buildMedications() {
     if (!this._hass) return;
     const states = this._hass.states;
+    const entities = this._hass.entities || {};
+
+    // Pre-index entities by device_id so sibling entities on the same
+    // medication can be found even if their entity_id doesn't match the
+    // "<base>_<suffix>" pattern guessed from another entity's id.
+    const byDevice = {};
+    for (const [eid, ent] of Object.entries(entities)) {
+      if (!ent || !ent.device_id) continue;
+      (byDevice[ent.device_id] ??= []).push(eid);
+    }
 
     const nextDoseSensors = Object.entries(states).filter(
       ([id]) => id.startsWith("sensor.") && id.endsWith("_next_dose")
@@ -53,48 +121,13 @@ class MedicationTrackerCard extends HTMLElement {
       ([id]) => id.startsWith("sensor.") && id.endsWith("_next_available")
     );
 
-    const scheduledMeds = nextDoseSensors.map(([entityId, state]) => {
-      const base = entityId.replace("sensor.", "").replace("_next_dose", "");
-      const friendlyBase = state.attributes.friendly_name?.replace(/\s*Next Dose$/i, "") || base;
-      const get = (domain, suffix) => states[`${domain}.${base}_${suffix}`] || null;
-      return {
-        name: friendlyBase,
-        base,
-        med_type: "scheduled",
-        next_dose: state,
-        last_taken: get("sensor", "last_taken"),
-        streak: get("sensor", "streak"),
-        taken_today: get("sensor", "taken_today"),
-        overdue: get("binary_sensor", "overdue"),
-        due_soon: get("binary_sensor", "due_soon"),
-        stock: get("sensor", "stock"),
-        low_stock: get("binary_sensor", "low_stock"),
-        stock_number: get("number", "stock"),
-        btn_taken: get("button", "mark_taken"),
-        btn_skipped: get("button", "mark_skipped"),
-      };
-    });
+    const scheduledMeds = nextDoseSensors.map(([entityId, state]) =>
+      this._buildMed(entityId, state, "_next_dose", /\s*Next Dose$/i, "scheduled", byDevice)
+    );
 
-    const asNeededMeds = nextAvailableSensors.map(([entityId, state]) => {
-      const base = entityId.replace("sensor.", "").replace("_next_available", "");
-      const friendlyBase = state.attributes.friendly_name?.replace(/\s*Next Available$/i, "") || base;
-      const get = (domain, suffix) => states[`${domain}.${base}_${suffix}`] || null;
-      return {
-        name: friendlyBase,
-        base,
-        med_type: "as_needed",
-        next_available: state,
-        available: get("binary_sensor", "available"),
-        last_taken: get("sensor", "last_taken"),
-        streak: get("sensor", "streak"),
-        taken_today: get("sensor", "taken_today"),
-        stock: get("sensor", "stock"),
-        low_stock: get("binary_sensor", "low_stock"),
-        stock_number: get("number", "stock"),
-        btn_taken: get("button", "mark_taken"),
-        btn_skipped: get("button", "mark_skipped"),
-      };
-    });
+    const asNeededMeds = nextAvailableSensors.map(([entityId, state]) =>
+      this._buildMed(entityId, state, "_next_available", /\s*Next Available$/i, "as_needed", byDevice)
+    );
 
     this._medications = [...scheduledMeds, ...asNeededMeds];
   }
@@ -130,7 +163,7 @@ class MedicationTrackerCard extends HTMLElement {
 
   _renderTopUpButton(med) {
     if (!this._hasStock(med)) return "";
-    return `<button class="btn btn-topup" data-entity="number.${med.base}_stock">Top up stock</button>`;
+    return `<button class="btn btn-topup" data-entity="${med.stock_number.entity_id}">Top up stock</button>`;
   }
 
   _renderScheduledMed(med) {
@@ -148,8 +181,8 @@ class MedicationTrackerCard extends HTMLElement {
     const streak = med.streak?.state ?? "0";
     const takenToday = med.taken_today?.state ?? "0";
     const scheduledToday = med.taken_today?.attributes?.doses_scheduled_today ?? "?";
-    const btnTakenId = med.btn_taken ? `button.${med.base}_mark_taken` : null;
-    const btnSkippedId = med.btn_skipped ? `button.${med.base}_mark_skipped` : null;
+    const btnTakenId = med.btn_taken ? med.btn_taken.entity_id : null;
+    const btnSkippedId = med.btn_skipped ? med.btn_skipped.entity_id : null;
 
     return `
       <div class="${rowClass}">
@@ -176,7 +209,7 @@ class MedicationTrackerCard extends HTMLElement {
     const maxPerDay = med.next_available?.attributes?.as_needed_max_per_day ?? "?";
     const takenToday = med.taken_today?.state ?? "0";
     const lastTaken = this._formatRelative(med.last_taken?.state);
-    const btnTakenId = med.btn_taken ? `button.${med.base}_mark_taken` : null;
+    const btnTakenId = med.btn_taken ? med.btn_taken.entity_id : null;
     const isLowStock = med.low_stock?.state === "on";
 
     let rowClass = "med-row";
