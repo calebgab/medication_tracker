@@ -1,5 +1,4 @@
-const CARD_VERSION = "2026.07.11-stock-topup-debug";
-console.info(`%c[medication-tracker-card] script loaded, version ${CARD_VERSION}`, "color: #03a9f4");
+console.info("[medication-tracker-card] script loaded");
 
 class MedicationTrackerCard extends HTMLElement {
   constructor() {
@@ -7,33 +6,12 @@ class MedicationTrackerCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._medications = [];
     this._hass = null;
-    this._loggedDebug = false;
   }
 
   set hass(hass) {
     this._hass = hass;
     this._buildMedications();
-    if (!this._loggedDebug) {
-      this._logStockDebug();
-      this._loggedDebug = true;
-    }
     this._render();
-  }
-
-  _logStockDebug() {
-    console.group(`[medication-tracker-card] v${CARD_VERSION} — stock entity debug (logged once)`);
-    if (this._medications.length === 0) {
-      console.warn("No medications found at all — check sensor.*_next_dose / sensor.*_next_available exist.");
-    }
-    for (const med of this._medications) {
-      console.log(`Medication: ${med.name} (base="${med.base}")`, {
-        stock: med.stock ? `${med.stock.entity_id} = ${med.stock.state}` : "NOT FOUND",
-        low_stock: med.low_stock ? `${med.low_stock.entity_id} = ${med.low_stock.state}` : "NOT FOUND",
-        stock_number: med.stock_number ? `${med.stock_number.entity_id} = ${med.stock_number.state}` : "NOT FOUND",
-        hasStock_result: this._hasStock(med),
-      });
-    }
-    console.groupEnd();
   }
 
   setConfig(config) {
