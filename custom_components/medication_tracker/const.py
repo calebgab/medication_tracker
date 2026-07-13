@@ -111,6 +111,118 @@ CONF_NOTIF_LOW_STOCK_ENABLED = "low_stock_enabled"
 CONF_NOTIF_LOW_STOCK_TITLE = "low_stock_title"
 CONF_NOTIF_LOW_STOCK_MESSAGE = "low_stock_message"
 
+# ---------------------------------------------------------------------------
+# Notification sounds (per alert type, per platform)
+# ---------------------------------------------------------------------------
+
+# iOS sound modes
+SOUND_MODE_DEFAULT = "default"
+SOUND_MODE_CRITICAL = "critical"
+SOUND_MODE_TIME_SENSITIVE = "time_sensitive"
+SOUND_MODE_NONE = "none"
+
+IOS_SOUND_MODE_OPTIONS = {
+    SOUND_MODE_DEFAULT: "Default (device's normal notification sound)",
+    SOUND_MODE_CRITICAL: "Critical — bypasses mute & Do Not Disturb",
+    SOUND_MODE_TIME_SENSITIVE: "Time-sensitive — plays a sound",
+    SOUND_MODE_NONE: "No sound",
+}
+
+# Android only has Default/Critical/None — sound itself isn't payload-settable,
+# only the notification channel + importance, which the user then configures
+# on-device (see ANDROID_CRITICAL_CHANNEL / ANDROID_SILENT_CHANNEL below).
+ANDROID_SOUND_MODE_OPTIONS = {
+    SOUND_MODE_DEFAULT: "Default (device's normal notification sound)",
+    SOUND_MODE_CRITICAL: "Critical — dedicated high-priority channel",
+    SOUND_MODE_NONE: "No sound",
+}
+
+ANDROID_IMPORTANCE_OPTIONS = {
+    "min": "Min",
+    "low": "Low",
+    "default": "Default",
+    "high": "High",
+    "max": "Max",
+}
+
+DEFAULT_IOS_SOUND_MODE = SOUND_MODE_DEFAULT
+DEFAULT_IOS_SOUND_NAME = "default"
+DEFAULT_ANDROID_SOUND_MODE = SOUND_MODE_DEFAULT
+DEFAULT_ANDROID_IMPORTANCE = "default"
+
+# Critical alerts require the user to have granted the HA app "Critical
+# Alerts" permission in iOS Settings, separate from ordinary notification
+# permission — bypasses mute and Do Not Disturb when granted.
+IOS_CRITICAL_SOUND = {"name": "default", "critical": 1, "volume": 1.0}
+
+# Android channels are created once (on first send) and locked from then on —
+# later importance/sound changes via the payload are ignored, only lowering
+# takes effect. Users adjust sound per-channel in their device's own settings.
+ANDROID_CRITICAL_CHANNEL = "Critical Medication"
+ANDROID_SILENT_CHANNEL = "Medication Tracker (Silent)"
+ANDROID_SILENT_IMPORTANCE = "low"
+
+# Per-alert-type sound config keys
+CONF_NOTIF_DUE_IOS_SOUND_MODE = "due_ios_sound_mode"
+CONF_NOTIF_DUE_IOS_SOUND_NAME = "due_ios_sound_name"
+CONF_NOTIF_DUE_ANDROID_SOUND_MODE = "due_android_sound_mode"
+CONF_NOTIF_DUE_ANDROID_IMPORTANCE = "due_android_importance"
+
+CONF_NOTIF_OVERDUE_IOS_SOUND_MODE = "overdue_ios_sound_mode"
+CONF_NOTIF_OVERDUE_IOS_SOUND_NAME = "overdue_ios_sound_name"
+CONF_NOTIF_OVERDUE_ANDROID_SOUND_MODE = "overdue_android_sound_mode"
+CONF_NOTIF_OVERDUE_ANDROID_IMPORTANCE = "overdue_android_importance"
+
+CONF_NOTIF_DUE_SOON_IOS_SOUND_MODE = "due_soon_ios_sound_mode"
+CONF_NOTIF_DUE_SOON_IOS_SOUND_NAME = "due_soon_ios_sound_name"
+CONF_NOTIF_DUE_SOON_ANDROID_SOUND_MODE = "due_soon_android_sound_mode"
+CONF_NOTIF_DUE_SOON_ANDROID_IMPORTANCE = "due_soon_android_importance"
+
+CONF_NOTIF_TAKEN_IOS_SOUND_MODE = "taken_ios_sound_mode"
+CONF_NOTIF_TAKEN_IOS_SOUND_NAME = "taken_ios_sound_name"
+CONF_NOTIF_TAKEN_ANDROID_SOUND_MODE = "taken_android_sound_mode"
+CONF_NOTIF_TAKEN_ANDROID_IMPORTANCE = "taken_android_importance"
+
+CONF_NOTIF_LOW_STOCK_IOS_SOUND_MODE = "low_stock_ios_sound_mode"
+CONF_NOTIF_LOW_STOCK_IOS_SOUND_NAME = "low_stock_ios_sound_name"
+CONF_NOTIF_LOW_STOCK_ANDROID_SOUND_MODE = "low_stock_android_sound_mode"
+CONF_NOTIF_LOW_STOCK_ANDROID_IMPORTANCE = "low_stock_android_importance"
+
+# Per alert-type field key groups, used to build the sound schema/payload
+# generically instead of repeating the same 4-field block five times.
+NOTIF_SOUND_KEYS_BY_TYPE = {
+    "due": (
+        CONF_NOTIF_DUE_IOS_SOUND_MODE,
+        CONF_NOTIF_DUE_IOS_SOUND_NAME,
+        CONF_NOTIF_DUE_ANDROID_SOUND_MODE,
+        CONF_NOTIF_DUE_ANDROID_IMPORTANCE,
+    ),
+    "overdue": (
+        CONF_NOTIF_OVERDUE_IOS_SOUND_MODE,
+        CONF_NOTIF_OVERDUE_IOS_SOUND_NAME,
+        CONF_NOTIF_OVERDUE_ANDROID_SOUND_MODE,
+        CONF_NOTIF_OVERDUE_ANDROID_IMPORTANCE,
+    ),
+    "due_soon": (
+        CONF_NOTIF_DUE_SOON_IOS_SOUND_MODE,
+        CONF_NOTIF_DUE_SOON_IOS_SOUND_NAME,
+        CONF_NOTIF_DUE_SOON_ANDROID_SOUND_MODE,
+        CONF_NOTIF_DUE_SOON_ANDROID_IMPORTANCE,
+    ),
+    "taken": (
+        CONF_NOTIF_TAKEN_IOS_SOUND_MODE,
+        CONF_NOTIF_TAKEN_IOS_SOUND_NAME,
+        CONF_NOTIF_TAKEN_ANDROID_SOUND_MODE,
+        CONF_NOTIF_TAKEN_ANDROID_IMPORTANCE,
+    ),
+    "low_stock": (
+        CONF_NOTIF_LOW_STOCK_IOS_SOUND_MODE,
+        CONF_NOTIF_LOW_STOCK_IOS_SOUND_NAME,
+        CONF_NOTIF_LOW_STOCK_ANDROID_SOUND_MODE,
+        CONF_NOTIF_LOW_STOCK_ANDROID_IMPORTANCE,
+    ),
+}
+
 # Per-medication override keys
 CONF_NOTIF_OVERRIDES = "notification_overrides"
 CONF_NOTIF_OVERRIDE_OVERDUE = "override_overdue"

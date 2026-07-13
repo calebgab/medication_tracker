@@ -11,6 +11,9 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_call_later
 
 from .const import (
+    ANDROID_CRITICAL_CHANNEL,
+    ANDROID_SILENT_CHANNEL,
+    ANDROID_SILENT_IMPORTANCE,
     MED_TYPE_AS_NEEDED,
     CONF_NOTIF_DUE_ENABLED,
     CONF_NOTIF_DUE_MESSAGE,
@@ -35,10 +38,14 @@ from .const import (
     CONF_NOTIF_TAKEN_MESSAGE,
     CONF_NOTIF_TAKEN_TITLE,
     CONF_NOTIF_TARGET,
+    DEFAULT_ANDROID_IMPORTANCE,
+    DEFAULT_ANDROID_SOUND_MODE,
     DEFAULT_DUE_MESSAGE,
     DEFAULT_DUE_SOON_MESSAGE,
     DEFAULT_DUE_SOON_TITLE,
     DEFAULT_DUE_TITLE,
+    DEFAULT_IOS_SOUND_MODE,
+    DEFAULT_IOS_SOUND_NAME,
     DEFAULT_LOW_STOCK_MESSAGE,
     DEFAULT_LOW_STOCK_TITLE,
     DEFAULT_NOTIFY_TARGET,
@@ -47,6 +54,11 @@ from .const import (
     DEFAULT_OVERDUE_TITLE,
     DEFAULT_TAKEN_MESSAGE,
     DEFAULT_TAKEN_TITLE,
+    IOS_CRITICAL_SOUND,
+    NOTIF_SOUND_KEYS_BY_TYPE,
+    SOUND_MODE_CRITICAL,
+    SOUND_MODE_NONE,
+    SOUND_MODE_TIME_SENSITIVE,
 )
 
 from .coordinator import extract_scheduled_time
@@ -79,14 +91,14 @@ def _is_ios(hass: HomeAssistant, target: str) -> bool:
     return False
 
 
-def _build_action_data(hass: HomeAssistant, target: str, med_id: str) -> dict[str, Any]:
+def _build_action_data(is_ios: bool, med_id: str) -> dict[str, Any]:
     """Build platform-appropriate action data for an actionable notification."""
     # Encode med_id in the action identifier so it comes back in the event response
     actions = [
         {"action": f"{ACTION_MARK_TAKEN_PREFIX}{med_id}", "title": "Mark taken"},
         {"action": f"{ACTION_REMIND_PREFIX}{med_id}", "title": "Remind in 5 min"},
     ]
-    if _is_ios(hass, target):
+    if is_ios:
         return {
             "actions": actions,
             "push": {"category": "MEDICATION_ALERT"},
@@ -96,6 +108,44 @@ def _build_action_data(hass: HomeAssistant, target: str, med_id: str) -> dict[st
         "tag": f"medication_{med_id}",
         "persistent": False,
     }
+
+
+def _apply_sound(
+    data: dict[str, Any],
+    notif_config: dict[str, Any],
+    sound_keys: tuple[str, str, str, str],
+    is_ios: bool,
+) -> None:
+    """Mutate `data` in place per the configured sound mode for this alert type."""
+    ios_mode_key, ios_name_key, android_mode_key, android_importance_key = sound_keys
+    if is_ios:
+        mode = notif_config.get(ios_mode_key, DEFAULT_IOS_SOUND_MODE)
+        if mode == SOUND_MODE_CRITICAL:
+            data["push"] = {
+                **data.get("push", {}),
+                "sound": IOS_CRITICAL_SOUND,
+                "interruption-level": "critical",
+            }
+        elif mode == SOUND_MODE_TIME_SENSITIVE:
+            sound_name = notif_config.get(ios_name_key) or DEFAULT_IOS_SOUND_NAME
+            data["push"] = {
+                **data.get("push", {}),
+                "sound": sound_name,
+                "interruption-level": "time-sensitive",
+            }
+        elif mode == SOUND_MODE_NONE:
+            data["push"] = {**data.get("push", {}), "sound": ""}
+        # SOUND_MODE_DEFAULT: leave the payload untouched — today's behavior.
+    else:
+        mode = notif_config.get(android_mode_key, DEFAULT_ANDROID_SOUND_MODE)
+        if mode == SOUND_MODE_CRITICAL:
+            importance = notif_config.get(android_importance_key, DEFAULT_ANDROID_IMPORTANCE)
+            data["channel"] = ANDROID_CRITICAL_CHANNEL
+            data["importance"] = importance
+        elif mode == SOUND_MODE_NONE:
+            data["channel"] = ANDROID_SILENT_CHANNEL
+            data["importance"] = ANDROID_SILENT_IMPORTANCE
+        # SOUND_MODE_DEFAULT: leave the payload untouched — today's behavior.
 
 
 class MedicationNotifier:
@@ -183,6 +233,7 @@ class MedicationNotifier:
                     },
                     med_id=med_id,
                     actionable=True,
+                    sound_keys=NOTIF_SOUND_KEYS_BY_TYPE["overdue"],
                 )
             )
 
@@ -251,6 +302,7 @@ class MedicationNotifier:
             },
             med_id=med_id,
             actionable=False,
+            sound_keys=NOTIF_SOUND_KEYS_BY_TYPE["taken"],
         )
 
     # ------------------------------------------------------------------
@@ -296,6 +348,7 @@ class MedicationNotifier:
             },
             med_id=med["id"],
             actionable=True,
+            sound_keys=NOTIF_SOUND_KEYS_BY_TYPE["due"],
         )
         self._fired.add(fire_key)
 
@@ -353,6 +406,7 @@ class MedicationNotifier:
             },
             med_id=med["id"],
             actionable=True,
+            sound_keys=NOTIF_SOUND_KEYS_BY_TYPE["overdue"],
         )
         self._fired.add(fire_key)
 
@@ -395,6 +449,7 @@ class MedicationNotifier:
             },
             med_id=med["id"],
             actionable=True,
+            sound_keys=NOTIF_SOUND_KEYS_BY_TYPE["due_soon"],
         )
         self._fired.add(fire_key)
 
@@ -439,6 +494,7 @@ class MedicationNotifier:
             },
             med_id=med["id"],
             actionable=False,
+            sound_keys=NOTIF_SOUND_KEYS_BY_TYPE["low_stock"],
         )
         self._low_stock_fired.add(med_id)
 
@@ -454,6 +510,7 @@ class MedicationNotifier:
         placeholders: dict[str, str],
         med_id: str = "",
         actionable: bool = False,
+        sound_keys: tuple[str, str, str, str] | None = None,
     ) -> None:
         """Render templates and call the notify service."""
         target = notif_config.get(CONF_NOTIF_TARGET, DEFAULT_NOTIFY_TARGET)
@@ -468,8 +525,14 @@ class MedicationNotifier:
 
         service_data: dict[str, Any] = {"title": title, "message": message}
 
+        is_ios = _is_ios(self._hass, target)
+        data: dict[str, Any] = {}
         if actionable and med_id and target != DEFAULT_NOTIFY_TARGET:
-            service_data["data"] = _build_action_data(self._hass, target, med_id)
+            data.update(_build_action_data(is_ios, med_id))
+        if sound_keys and target != DEFAULT_NOTIFY_TARGET:
+            _apply_sound(data, notif_config, sound_keys, is_ios)
+        if data:
+            service_data["data"] = data
 
         _LOGGER.debug(
             "Sending notification via %s: title=%r, actionable=%s", target, title, actionable
