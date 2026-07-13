@@ -15,7 +15,7 @@ Track medications, scheduled doses, streaks, and overdue alerts — entirely loc
 - **Binary sensors** for overdue detection (with configurable grace period) and due-soon alerts (within 60 minutes) for scheduled meds; availability tracking for PRN meds
 - **Button entities** to mark doses as taken or skipped — appear automatically on the device page
 - **Optional stock tracking** — record a current stock level per medication and it's automatically decremented each time a dose is taken, with a low-stock sensor and alert so you never run out
-- **Built-in notifications** — configure overdue, due soon, taken confirmation, and low stock alerts directly from the integration, with actionable notifications (Mark taken / Remind in 5 min) on iOS and Android
+- **Built-in notifications** — configure due, repeating overdue reminders, due soon, taken confirmation, and low stock alerts directly from the integration, with an actionable **Mark taken** button on iOS and Android that also auto-clears any pending reminder
 - **Per-medication notification overrides** — enable or disable individual alert types per medication, overriding the global settings
 - **Services** to mark doses taken or skipped, reset today's log, and adjust stock (e.g. after a refill)
 - **Full UI configuration** — add, edit, and remove medications via the Home Assistant UI (no YAML required)
@@ -110,14 +110,17 @@ Click **Configure** on the integration card, then choose **Notifications** to se
 | Setting | Description |
 |---------|-------------|
 | Notify service | The HA notify service to use (e.g. `notify.mobile_app_your_phone`) — select from the dropdown of detected devices |
-| Alert when due | Send a notification when a dose is due |
-| Alert when overdue | Send a notification when a dose is past its grace period |
-| Overdue delay | Extra minutes to wait after the grace period before notifying (0 = immediate) |
-| Alert when due soon | Send a notification when a dose is due within 60 minutes |
+| Alert when due | Send a notification once, right at the scheduled time |
+| Repeat reminder every N minutes until taken or skipped | Once a dose goes overdue (30 minutes past due by default), keep re-notifying every N minutes until you mark it taken or skipped |
+| Repeat every (minutes) | How often the overdue reminder repeats (default 30) |
+| Stop repeating after this many reminders | Caps how many times it repeats before giving up (default 5) — the overdue state itself doesn't clear, it just stops notifying |
+| Alert when due soon | Send a notification once, when a dose is due within 60 minutes |
 | Taken confirmation | Send a notification when a dose is marked as taken |
 | Alert when stock is low | Send a notification when a medication's stock falls to or below its configured threshold (applies to both scheduled and as-needed medications; requires [stock tracking](#stock-tracking-optional) to be enabled for that medication) |
 
-Notifications on iOS and Android include **Mark taken** and **Remind in 5 min** action buttons. Tapping Mark taken updates the sensors immediately without opening the app.
+Notifications on iOS and Android include a **Mark taken** action button — tapping it updates the sensors immediately without opening the app. Marking a dose taken or skipped from *anywhere* (button, dashboard, service call, or the notification action) automatically clears any pending due/overdue reminder still sitting on your phone, so you're not left with a stale "have you taken this?" notification after you've already dealt with it.
+
+**Android note:** clearing a notification in the background is a known-unreliable operation on Android unless it's delivered with high priority — this integration always requests high-priority delivery for the clear itself, but if it's still not clearing reliably for you, check that battery optimization is disabled for the Home Assistant app (Settings → Apps → Home Assistant → Battery → Unrestricted) and consider setting that alert type's Android sound (in [Notifications](#notifications)) to **Critical**, which is the most reliable delivery path on Android.
 
 The low stock alert fires once when stock crosses the threshold and won't repeat until you restock above it (via the `adjust_stock` service) and it drops low again.
 
@@ -137,7 +140,7 @@ After the global settings, you can also customise the notification title and mes
 | Option | Behavior |
 |--------|----------|
 | Default | The device's normal notification sound (unchanged from today) |
-| Critical | Routes to a dedicated **Critical Medication** notification channel, with an Importance you choose (Min/Low/Default/High/Max) |
+| Critical | Routes to a dedicated **Critical Medication** notification channel (with an Importance you choose: Min/Low/Default/High/Max) and requests high-priority FCM delivery, the most reliable way to get through Android's background/battery restrictions |
 | No sound | Routes to a dedicated silent channel |
 
 Android sound isn't controllable per-notification — it's tied to the notification *channel*, and Android locks a channel's sound/importance the first time it's created. If you need to change it later, do so in your phone's own notification settings (Settings → Apps → Home Assistant → Notifications → the relevant channel), not from this integration.

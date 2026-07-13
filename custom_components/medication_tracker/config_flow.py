@@ -33,9 +33,10 @@ from .const import (
     CONF_NOTIF_LOW_STOCK_ENABLED,
     CONF_NOTIF_LOW_STOCK_MESSAGE,
     CONF_NOTIF_LOW_STOCK_TITLE,
-    CONF_NOTIF_OVERDUE_DELAY,
     CONF_NOTIF_OVERDUE_ENABLED,
+    CONF_NOTIF_OVERDUE_MAX_REPEATS,
     CONF_NOTIF_OVERDUE_MESSAGE,
+    CONF_NOTIF_OVERDUE_REPEAT_MINUTES,
     CONF_NOTIF_OVERDUE_TITLE,
     CONF_NOTIF_OVERRIDE_DUE,
     CONF_NOTIF_OVERRIDE_DUE_SOON,
@@ -64,8 +65,9 @@ from .const import (
     DEFAULT_LOW_STOCK_MESSAGE,
     DEFAULT_LOW_STOCK_TITLE,
     DEFAULT_NOTIFY_TARGET,
-    DEFAULT_OVERDUE_DELAY,
+    DEFAULT_OVERDUE_MAX_REPEATS,
     DEFAULT_OVERDUE_MESSAGE,
+    DEFAULT_OVERDUE_REPEAT_MINUTES,
     DEFAULT_OVERDUE_TITLE,
     DEFAULT_STOCK_LOW_THRESHOLD,
     DEFAULT_STOCK_PER_DOSE,
@@ -697,9 +699,17 @@ class MedicationOptionsFlow(OptionsFlow):
                         default=cfg.get(CONF_NOTIF_OVERDUE_ENABLED, False),
                     ): bool,
                     vol.Optional(
-                        CONF_NOTIF_OVERDUE_DELAY,
-                        default=cfg.get(CONF_NOTIF_OVERDUE_DELAY, DEFAULT_OVERDUE_DELAY),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=0, max=120)),
+                        CONF_NOTIF_OVERDUE_REPEAT_MINUTES,
+                        default=cfg.get(
+                            CONF_NOTIF_OVERDUE_REPEAT_MINUTES, DEFAULT_OVERDUE_REPEAT_MINUTES
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+                    vol.Optional(
+                        CONF_NOTIF_OVERDUE_MAX_REPEATS,
+                        default=cfg.get(
+                            CONF_NOTIF_OVERDUE_MAX_REPEATS, DEFAULT_OVERDUE_MAX_REPEATS
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
                     vol.Optional(
                         CONF_NOTIF_DUE_SOON_ENABLED,
                         default=cfg.get(CONF_NOTIF_DUE_SOON_ENABLED, False),
@@ -1053,9 +1063,13 @@ def _notification_config_from_input(
         CONF_NOTIF_OVERDUE_ENABLED: user_input.get(
             CONF_NOTIF_OVERDUE_ENABLED, existing.get(CONF_NOTIF_OVERDUE_ENABLED, False)
         ),
-        CONF_NOTIF_OVERDUE_DELAY: user_input.get(
-            CONF_NOTIF_OVERDUE_DELAY,
-            existing.get(CONF_NOTIF_OVERDUE_DELAY, DEFAULT_OVERDUE_DELAY),
+        CONF_NOTIF_OVERDUE_REPEAT_MINUTES: user_input.get(
+            CONF_NOTIF_OVERDUE_REPEAT_MINUTES,
+            existing.get(CONF_NOTIF_OVERDUE_REPEAT_MINUTES, DEFAULT_OVERDUE_REPEAT_MINUTES),
+        ),
+        CONF_NOTIF_OVERDUE_MAX_REPEATS: user_input.get(
+            CONF_NOTIF_OVERDUE_MAX_REPEATS,
+            existing.get(CONF_NOTIF_OVERDUE_MAX_REPEATS, DEFAULT_OVERDUE_MAX_REPEATS),
         ),
         CONF_NOTIF_DUE_SOON_ENABLED: user_input.get(
             CONF_NOTIF_DUE_SOON_ENABLED, existing.get(CONF_NOTIF_DUE_SOON_ENABLED, False)

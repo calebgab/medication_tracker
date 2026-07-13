@@ -92,10 +92,19 @@ DEFAULT_AS_NEEDED_MIN_HOURS = 4
 # Top-level notification config stored in coordinator
 CONF_NOTIFICATIONS = "notifications"
 
+# Tag used on due/due-soon/overdue push notifications so a repeat replaces
+# (rather than stacks on top of) the previous one, and so marking a dose
+# taken or skipped can explicitly clear any pending reminder on the device.
+REMINDER_NOTIFICATION_TAG_PREFIX = "medication_reminder_"
+
 # Global defaults keys
 CONF_NOTIF_TARGET = "notify_target"
+# "Repeat reminder until taken or skipped" — reuses the pre-existing enabled
+# key so anyone who already had "Alert when overdue" on keeps working
+# unchanged after upgrading, just with repeat behavior instead of one-shot.
 CONF_NOTIF_OVERDUE_ENABLED = "overdue_enabled"
-CONF_NOTIF_OVERDUE_DELAY = "overdue_delay_minutes"
+CONF_NOTIF_OVERDUE_REPEAT_MINUTES = "overdue_repeat_minutes"
+CONF_NOTIF_OVERDUE_MAX_REPEATS = "overdue_max_repeats"
 CONF_NOTIF_OVERDUE_TITLE = "overdue_title"
 CONF_NOTIF_OVERDUE_MESSAGE = "overdue_message"
 CONF_NOTIF_DUE_SOON_ENABLED = "due_soon_enabled"
@@ -233,7 +242,8 @@ CONF_NOTIF_OVERRIDE_LOW_STOCK = "override_low_stock"
 
 # Default notify target
 DEFAULT_NOTIFY_TARGET = "notify.persistent_notification"
-DEFAULT_OVERDUE_DELAY = 0
+DEFAULT_OVERDUE_REPEAT_MINUTES = 30
+DEFAULT_OVERDUE_MAX_REPEATS = 5
 
 # Default message templates
 # Available placeholders: {medication}, {dose}, {time}, {overdue_since}
