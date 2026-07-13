@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.event import async_call_later
+import homeassistant.util.dt as dt_util
 
 from .const import (
     ANDROID_CRITICAL_CHANNEL,
@@ -24,9 +24,10 @@ from .const import (
     CONF_NOTIF_LOW_STOCK_ENABLED,
     CONF_NOTIF_LOW_STOCK_MESSAGE,
     CONF_NOTIF_LOW_STOCK_TITLE,
-    CONF_NOTIF_OVERDUE_DELAY,
     CONF_NOTIF_OVERDUE_ENABLED,
+    CONF_NOTIF_OVERDUE_MAX_REPEATS,
     CONF_NOTIF_OVERDUE_MESSAGE,
+    CONF_NOTIF_OVERDUE_REPEAT_MINUTES,
     CONF_NOTIF_OVERDUE_TITLE,
     CONF_NOTIF_OVERRIDE_DUE,
     CONF_NOTIF_OVERRIDE_DUE_SOON,
@@ -49,13 +50,15 @@ from .const import (
     DEFAULT_LOW_STOCK_MESSAGE,
     DEFAULT_LOW_STOCK_TITLE,
     DEFAULT_NOTIFY_TARGET,
-    DEFAULT_OVERDUE_DELAY,
+    DEFAULT_OVERDUE_MAX_REPEATS,
     DEFAULT_OVERDUE_MESSAGE,
+    DEFAULT_OVERDUE_REPEAT_MINUTES,
     DEFAULT_OVERDUE_TITLE,
     DEFAULT_TAKEN_MESSAGE,
     DEFAULT_TAKEN_TITLE,
     IOS_CRITICAL_SOUND,
     NOTIF_SOUND_KEYS_BY_TYPE,
+    REMINDER_NOTIFICATION_TAG_PREFIX,
     SOUND_MODE_CRITICAL,
     SOUND_MODE_NONE,
     SOUND_MODE_TIME_SENSITIVE,
@@ -69,7 +72,6 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 ACTION_MARK_TAKEN_PREFIX = "MT_TAKEN_"
-ACTION_REMIND_PREFIX = "MT_REMIND_"
 
 
 def _is_ios(hass: HomeAssistant, target: str) -> bool:
@@ -96,16 +98,20 @@ def _build_action_data(is_ios: bool, med_id: str) -> dict[str, Any]:
     # Encode med_id in the action identifier so it comes back in the event response
     actions = [
         {"action": f"{ACTION_MARK_TAKEN_PREFIX}{med_id}", "title": "Mark taken"},
-        {"action": f"{ACTION_REMIND_PREFIX}{med_id}", "title": "Remind in 5 min"},
     ]
+    # Same tag on both platforms: reusing it means a repeat reminder replaces
+    # the previous one instead of stacking, and it lets async_clear_pending_
+    # reminder() explicitly dismiss it once the dose is taken or skipped.
+    tag = f"{REMINDER_NOTIFICATION_TAG_PREFIX}{med_id}"
     if is_ios:
         return {
             "actions": actions,
             "push": {"category": "MEDICATION_ALERT"},
+            "tag": tag,
         }
     return {
         "actions": actions,
-        "tag": f"medication_{med_id}",
+        "tag": tag,
         "persistent": False,
     }
 
@@ -161,8 +167,13 @@ class MedicationNotifier:
         # cleared when stock rises back above the threshold — not by the
         # daily reset below, which would otherwise re-fire it every midnight.
         self._low_stock_fired: set[str] = set()
+        # Overdue repeat tracking: when each medication's reminder last fired,
+        # and how many times, so it can repeat every N minutes up to a max
+        # instead of firing once. Reset whenever the medication stops being
+        # overdue (taken/skipped, or the next scheduled dose rolls around).
+        self._overdue_last_fired: dict[str, datetime] = {}
+        self._overdue_repeat_count: dict[str, int] = {}
         self._unsub_action: Any = None
-        self._reminder_unsubs: list[Any] = []
         self._register_action_listener()
 
     # ------------------------------------------------------------------
@@ -174,80 +185,58 @@ class MedicationNotifier:
         @callback
         def _handle_action(event: Any) -> None:
             action = event.data.get("action", "")
-            # Extract med_id from the action identifier prefix
-            med_id = None
-            is_taken = False
-            is_remind = False
-            if action.startswith(ACTION_MARK_TAKEN_PREFIX):
-                med_id = action[len(ACTION_MARK_TAKEN_PREFIX):]
-                is_taken = True
-            elif action.startswith(ACTION_REMIND_PREFIX):
-                med_id = action[len(ACTION_REMIND_PREFIX):]
-                is_remind = True
-            else:
+            if not action.startswith(ACTION_MARK_TAKEN_PREFIX):
                 return
-
+            med_id = action[len(ACTION_MARK_TAKEN_PREFIX):]
             if not med_id:
                 return
 
             _LOGGER.debug("Notification action %s received for med %s", action, med_id)
 
-            if is_taken:
-                state = self._coordinator.get_med_state(med_id)
-                self._hass.async_create_task(
-                    self._coordinator.async_mark_taken(
-                        med_id, scheduled_time=extract_scheduled_time(state)
-                    )
+            state = self._coordinator.get_med_state(med_id)
+            self._hass.async_create_task(
+                self._coordinator.async_mark_taken(
+                    med_id, scheduled_time=extract_scheduled_time(state)
                 )
-            elif is_remind:
-                self._schedule_reminder(med_id)
+            )
 
         self._unsub_action = self._hass.bus.async_listen(
             "mobile_app_notification_action", _handle_action
         )
 
-    def _schedule_reminder(self, med_id: str) -> None:
-        """Fire a reminder notification for med_id after 5 minutes."""
-        @callback
-        def _send_reminder(_now: Any) -> None:
-            med = self._coordinator.get_medication(med_id)
-            if not med:
-                return
-            state = self._coordinator.get_med_state(med_id)
-            # Skip if the dose was already handled while the reminder was pending
-            if not (state.get("is_overdue") or state.get("is_due_now") or state.get("is_due_soon")):
-                return
-            notif_config = self._coordinator.notification_config
-            title = notif_config.get(CONF_NOTIF_OVERDUE_TITLE, DEFAULT_OVERDUE_TITLE)
-            message = notif_config.get(CONF_NOTIF_OVERDUE_MESSAGE, DEFAULT_OVERDUE_MESSAGE)
-            self._hass.async_create_task(
-                self._send(
-                    notif_config,
-                    title,
-                    message,
-                    {
-                        "medication": med["name"],
-                        "dose": med.get("dose", ""),
-                        "time": state.get("next_dose_time", ""),
-                        "overdue_since": _format_time(state.get("overdue_since", "")),
-                    },
-                    med_id=med_id,
-                    actionable=True,
-                    sound_keys=NOTIF_SOUND_KEYS_BY_TYPE["overdue"],
-                )
-            )
-
-        _LOGGER.debug("Scheduling reminder for med %s in 5 minutes", med_id)
-        self._reminder_unsubs.append(async_call_later(self._hass, 300, _send_reminder))
-
     def unsubscribe(self) -> None:
-        """Clean up the event listener and any pending reminder timers on unload."""
+        """Clean up the event listener on unload."""
         if self._unsub_action is not None:
             self._unsub_action()
             self._unsub_action = None
-        for cancel in self._reminder_unsubs:
-            cancel()
-        self._reminder_unsubs.clear()
+
+    async def async_clear_pending_reminder(self, med_id: str) -> None:
+        """Dismiss any pending due/due-soon/overdue notification for med_id.
+
+        Called whenever a dose is marked taken or skipped, regardless of
+        source, so a reminder doesn't keep sitting on the device once it's
+        no longer relevant.
+        """
+        notif_config = self._coordinator.notification_config
+        target = notif_config.get(CONF_NOTIF_TARGET, DEFAULT_NOTIFY_TARGET)
+        if target == DEFAULT_NOTIFY_TARGET:
+            return
+        parts = target.split(".", 1)
+        if len(parts) != 2:
+            return
+        domain, service = parts[0], parts[1]
+        try:
+            await self._hass.services.async_call(
+                domain,
+                service,
+                {
+                    "message": "clear_notification",
+                    "data": {"tag": f"{REMINDER_NOTIFICATION_TAG_PREFIX}{med_id}"},
+                },
+                blocking=False,
+            )
+        except Exception as err:
+            _LOGGER.error("Failed to clear pending reminder via %s: %s", target, err)
 
     # ------------------------------------------------------------------
     # Public entry points
@@ -274,6 +263,10 @@ class MedicationNotifier:
     async def async_notify_taken(self, med_id: str) -> None:
         """Called immediately when a dose is marked taken."""
         self._reset_if_new_day()
+        self._overdue_last_fired.pop(med_id, None)
+        self._overdue_repeat_count.pop(med_id, None)
+        await self.async_clear_pending_reminder(med_id)
+
         notif_config = self._coordinator.notification_config
         med = self._coordinator.get_medication(med_id)
         if not med:
@@ -304,6 +297,12 @@ class MedicationNotifier:
             actionable=False,
             sound_keys=NOTIF_SOUND_KEYS_BY_TYPE["taken"],
         )
+
+    async def async_notify_skipped(self, med_id: str) -> None:
+        """Called immediately when a dose is marked skipped."""
+        self._overdue_last_fired.pop(med_id, None)
+        self._overdue_repeat_count.pop(med_id, None)
+        await self.async_clear_pending_reminder(med_id)
 
     # ------------------------------------------------------------------
     # Internal checkers
@@ -359,7 +358,12 @@ class MedicationNotifier:
         notif_config: dict[str, Any],
         overrides: dict[str, Any],
     ) -> None:
+        med_id = med["id"]
         if not state.get("is_overdue"):
+            # No longer overdue (taken/skipped, or the next scheduled dose
+            # rolled around) — reset so the next overdue period starts fresh.
+            self._overdue_last_fired.pop(med_id, None)
+            self._overdue_repeat_count.pop(med_id, None)
             return
 
         enabled = overrides.get(
@@ -367,31 +371,29 @@ class MedicationNotifier:
             notif_config.get(CONF_NOTIF_OVERDUE_ENABLED, False),
         )
         if not enabled:
-            _LOGGER.debug("Overdue notification disabled for %s", med["name"])
+            _LOGGER.debug("Overdue reminder disabled for %s", med["name"])
             return
 
-        overdue_since = state.get("overdue_since", "")
-        fire_key = f"{med['id']}_overdue_{overdue_since}"
-        if fire_key in self._fired:
-            _LOGGER.debug("Overdue notification already fired for %s", med["name"])
+        max_repeats = notif_config.get(
+            CONF_NOTIF_OVERDUE_MAX_REPEATS, DEFAULT_OVERDUE_MAX_REPEATS
+        )
+        repeat_count = self._overdue_repeat_count.get(med_id, 0)
+        if repeat_count >= max_repeats:
             return
 
-        delay = notif_config.get(CONF_NOTIF_OVERDUE_DELAY, DEFAULT_OVERDUE_DELAY)
-        if delay and delay > 0 and overdue_since:
-            try:
-                overdue_dt = datetime.fromisoformat(overdue_since)
-                from homeassistant.util.dt import now as ha_now
-                elapsed = (ha_now() - overdue_dt).total_seconds() / 60
-                if elapsed < delay:
-                    _LOGGER.debug(
-                        "Overdue delay not met for %s (%.1f / %d min)",
-                        med["name"], elapsed, delay,
-                    )
-                    return
-            except ValueError:
-                pass
+        now = dt_util.now()
+        last_fired = self._overdue_last_fired.get(med_id)
+        if last_fired is not None:
+            repeat_minutes = notif_config.get(
+                CONF_NOTIF_OVERDUE_REPEAT_MINUTES, DEFAULT_OVERDUE_REPEAT_MINUTES
+            )
+            elapsed_minutes = (now - last_fired).total_seconds() / 60
+            if elapsed_minutes < repeat_minutes:
+                return
 
-        _LOGGER.debug("Firing overdue notification for %s", med["name"])
+        _LOGGER.debug(
+            "Firing overdue reminder %d/%d for %s", repeat_count + 1, max_repeats, med["name"]
+        )
         title = notif_config.get(CONF_NOTIF_OVERDUE_TITLE, DEFAULT_OVERDUE_TITLE)
         message = notif_config.get(CONF_NOTIF_OVERDUE_MESSAGE, DEFAULT_OVERDUE_MESSAGE)
         await self._send(
@@ -402,13 +404,14 @@ class MedicationNotifier:
                 "medication": med["name"],
                 "dose": med.get("dose", ""),
                 "time": state.get("next_dose_time", ""),
-                "overdue_since": _format_time(overdue_since),
+                "overdue_since": _format_time(state.get("overdue_since", "")),
             },
-            med_id=med["id"],
+            med_id=med_id,
             actionable=True,
             sound_keys=NOTIF_SOUND_KEYS_BY_TYPE["overdue"],
         )
-        self._fired.add(fire_key)
+        self._overdue_last_fired[med_id] = now
+        self._overdue_repeat_count[med_id] = repeat_count + 1
 
     async def _check_due_soon(
         self,

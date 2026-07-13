@@ -52,8 +52,9 @@
         "data": {
           "notify_target": "Notify service (e.g. notify.persistent_notification)",
           "due_enabled": "Alert when a dose is due",
-          "overdue_enabled": "Alert when a dose is overdue",
-          "overdue_delay_minutes": "Overdue alert delay (minutes after grace period, 0 = immediate)",
+          "overdue_enabled": "Repeat reminder every N minutes until taken or skipped",
+          "overdue_repeat_minutes": "Repeat every (minutes)",
+          "overdue_max_repeats": "Stop repeating after this many reminders",
           "due_soon_enabled": "Alert when a dose is due soon",
           "taken_enabled": "Confirm when a dose is marked taken",
           "low_stock_enabled": "Alert when stock is running low",

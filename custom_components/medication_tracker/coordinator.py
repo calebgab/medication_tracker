@@ -323,6 +323,13 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._dose_log.setdefault(med_id, []).append(entry)
         await self._async_save()
         await self.async_refresh()
+
+        if self._notifier is not None:
+            try:
+                await self._notifier.async_notify_skipped(med_id)
+            except Exception as err:
+                _LOGGER.error("Skipped notification cleanup failed: %s", err)
+
         return True
 
     async def async_reset_today(self, med_id: str) -> bool:
