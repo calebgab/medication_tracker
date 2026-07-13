@@ -9,6 +9,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
+from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig, NumberSelectorMode
 
 from .const import (
     ANDROID_IMPORTANCE_OPTIONS,
@@ -703,13 +704,23 @@ class MedicationOptionsFlow(OptionsFlow):
                         default=cfg.get(
                             CONF_NOTIF_OVERDUE_REPEAT_MINUTES, DEFAULT_OVERDUE_REPEAT_MINUTES
                         ),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+                    ): vol.All(
+                        NumberSelector(
+                            NumberSelectorConfig(min=1, max=1440, step=1, mode=NumberSelectorMode.BOX)
+                        ),
+                        vol.Coerce(int),
+                    ),
                     vol.Optional(
                         CONF_NOTIF_OVERDUE_MAX_REPEATS,
                         default=cfg.get(
                             CONF_NOTIF_OVERDUE_MAX_REPEATS, DEFAULT_OVERDUE_MAX_REPEATS
                         ),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
+                    ): vol.All(
+                        NumberSelector(
+                            NumberSelectorConfig(min=1, max=100, step=1, mode=NumberSelectorMode.BOX)
+                        ),
+                        vol.Coerce(int),
+                    ),
                     vol.Optional(
                         CONF_NOTIF_DUE_SOON_ENABLED,
                         default=cfg.get(CONF_NOTIF_DUE_SOON_ENABLED, False),
