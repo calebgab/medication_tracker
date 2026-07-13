@@ -120,6 +120,8 @@ Click **Configure** on the integration card, then choose **Notifications** to se
 
 Notifications on iOS and Android include a **Mark taken** action button — tapping it updates the sensors immediately without opening the app. Marking a dose taken or skipped from *anywhere* (button, dashboard, service call, or the notification action) automatically clears any pending due/overdue reminder still sitting on your phone, so you're not left with a stale "have you taken this?" notification after you've already dealt with it.
 
+**Android note:** clearing a notification in the background is a known-unreliable operation on Android unless it's delivered with high priority — this integration always requests high-priority delivery for the clear itself, but if it's still not clearing reliably for you, check that battery optimization is disabled for the Home Assistant app (Settings → Apps → Home Assistant → Battery → Unrestricted) and consider setting that alert type's Android sound (in [Notifications](#notifications)) to **Critical**, which is the most reliable delivery path on Android.
+
 The low stock alert fires once when stock crosses the threshold and won't repeat until you restock above it (via the `adjust_stock` service) and it drops low again.
 
 After the global settings, you can also customise the notification title and message templates for each alert type — and, alongside each template, a **Notification Sounds** section with separate iOS and Android options (they control sound differently, so each platform has its own settings). Everything defaults to **Default** — today's plain device notification tone — until you actively change it, so upgrading changes nothing until you visit this screen.
@@ -138,7 +140,7 @@ After the global settings, you can also customise the notification title and mes
 | Option | Behavior |
 |--------|----------|
 | Default | The device's normal notification sound (unchanged from today) |
-| Critical | Routes to a dedicated **Critical Medication** notification channel, with an Importance you choose (Min/Low/Default/High/Max) |
+| Critical | Routes to a dedicated **Critical Medication** notification channel (with an Importance you choose: Min/Low/Default/High/Max) and requests high-priority FCM delivery, the most reliable way to get through Android's background/battery restrictions |
 | No sound | Routes to a dedicated silent channel |
 
 Android sound isn't controllable per-notification — it's tied to the notification *channel*, and Android locks a channel's sound/importance the first time it's created. If you need to change it later, do so in your phone's own notification settings (Settings → Apps → Home Assistant → Notifications → the relevant channel), not from this integration.

@@ -148,6 +148,11 @@ def _apply_sound(
             importance = notif_config.get(android_importance_key, DEFAULT_ANDROID_IMPORTANCE)
             data["channel"] = ANDROID_CRITICAL_CHANNEL
             data["importance"] = importance
+            # Channel/importance only control on-screen behavior once the
+            # notification arrives — reliably bypassing background/Doze
+            # restrictions also needs FCM high-priority delivery.
+            data["priority"] = "high"
+            data["ttl"] = 0
         elif mode == SOUND_MODE_NONE:
             data["channel"] = ANDROID_SILENT_CHANNEL
             data["importance"] = ANDROID_SILENT_IMPORTANCE
@@ -231,7 +236,16 @@ class MedicationNotifier:
                 service,
                 {
                     "message": "clear_notification",
-                    "data": {"tag": f"{REMINDER_NOTIFICATION_TAG_PREFIX}{med_id}"},
+                    "data": {
+                        "tag": f"{REMINDER_NOTIFICATION_TAG_PREFIX}{med_id}",
+                        # Android defers/drops normal-priority background push
+                        # unless the app was recently active — clear commands
+                        # need FCM high-priority delivery (like Android's own
+                        # critical notifications use) to land reliably. No
+                        # effect on iOS, which ignores these fields.
+                        "priority": "high",
+                        "ttl": 0,
+                    },
                 },
                 blocking=False,
             )
