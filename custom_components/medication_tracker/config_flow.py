@@ -11,6 +11,8 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.core import callback
 
 from .const import (
+    ANDROID_IMPORTANCE_OPTIONS,
+    ANDROID_SOUND_MODE_OPTIONS,
     CONF_AS_NEEDED_MAX_PER_24H,
     CONF_AS_NEEDED_MAX_PER_DAY,
     CONF_AS_NEEDED_MIN_HOURS,
@@ -48,6 +50,8 @@ from .const import (
     CONF_STOCK_LOW_THRESHOLD,
     CONF_STOCK_PER_DOSE,
     CONF_STOCK_TRACKING_ENABLED,
+    DEFAULT_ANDROID_IMPORTANCE,
+    DEFAULT_ANDROID_SOUND_MODE,
     DEFAULT_AS_NEEDED_MAX_PER_24H,
     DEFAULT_AS_NEEDED_MAX_PER_DAY,
     DEFAULT_AS_NEEDED_MIN_HOURS,
@@ -55,6 +59,8 @@ from .const import (
     DEFAULT_DUE_SOON_MESSAGE,
     DEFAULT_DUE_SOON_TITLE,
     DEFAULT_DUE_TITLE,
+    DEFAULT_IOS_SOUND_MODE,
+    DEFAULT_IOS_SOUND_NAME,
     DEFAULT_LOW_STOCK_MESSAGE,
     DEFAULT_LOW_STOCK_TITLE,
     DEFAULT_NOTIFY_TARGET,
@@ -66,8 +72,10 @@ from .const import (
     DEFAULT_TAKEN_MESSAGE,
     DEFAULT_TAKEN_TITLE,
     DOMAIN,
+    IOS_SOUND_MODE_OPTIONS,
     MED_TYPE_AS_NEEDED,
     MED_TYPE_SCHEDULED,
+    NOTIF_SOUND_KEYS_BY_TYPE,
 )
 
 _TIME_PATTERN = re.compile(r"^\d{2}:\d{2}$")
@@ -151,6 +159,43 @@ def _stock_config_from_input(
         CONF_STOCK_PER_DOSE: user_input.get(CONF_STOCK_PER_DOSE, DEFAULT_STOCK_PER_DOSE),
         CONF_STOCK_LOW_THRESHOLD: user_input.get(
             CONF_STOCK_LOW_THRESHOLD, DEFAULT_STOCK_LOW_THRESHOLD
+        ),
+    }
+
+
+def _sound_schema_fields(type_key: str, cfg: dict[str, Any]) -> dict[Any, Any]:
+    """Return the iOS/Android notification sound schema fields for one alert type."""
+    ios_mode_key, ios_name_key, android_mode_key, android_importance_key = (
+        NOTIF_SOUND_KEYS_BY_TYPE[type_key]
+    )
+    return {
+        vol.Optional(
+            ios_mode_key, default=cfg.get(ios_mode_key, DEFAULT_IOS_SOUND_MODE)
+        ): vol.In(IOS_SOUND_MODE_OPTIONS),
+        vol.Optional(
+            ios_name_key, default=cfg.get(ios_name_key, DEFAULT_IOS_SOUND_NAME)
+        ): str,
+        vol.Optional(
+            android_mode_key, default=cfg.get(android_mode_key, DEFAULT_ANDROID_SOUND_MODE)
+        ): vol.In(ANDROID_SOUND_MODE_OPTIONS),
+        vol.Optional(
+            android_importance_key,
+            default=cfg.get(android_importance_key, DEFAULT_ANDROID_IMPORTANCE),
+        ): vol.In(ANDROID_IMPORTANCE_OPTIONS),
+    }
+
+
+def _sound_config_from_input(type_key: str, user_input: dict[str, Any]) -> dict[str, Any]:
+    """Extract the iOS/Android sound fields for one alert type from form input."""
+    ios_mode_key, ios_name_key, android_mode_key, android_importance_key = (
+        NOTIF_SOUND_KEYS_BY_TYPE[type_key]
+    )
+    return {
+        ios_mode_key: user_input.get(ios_mode_key, DEFAULT_IOS_SOUND_MODE),
+        ios_name_key: user_input.get(ios_name_key, DEFAULT_IOS_SOUND_NAME),
+        android_mode_key: user_input.get(android_mode_key, DEFAULT_ANDROID_SOUND_MODE),
+        android_importance_key: user_input.get(
+            android_importance_key, DEFAULT_ANDROID_IMPORTANCE
         ),
     }
 
@@ -691,6 +736,7 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_DUE_MESSAGE: user_input.get(
                     CONF_NOTIF_DUE_MESSAGE, DEFAULT_DUE_MESSAGE
                 ),
+                **_sound_config_from_input("due", user_input),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -707,6 +753,7 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_DUE_MESSAGE,
                         default=cfg.get(CONF_NOTIF_DUE_MESSAGE, DEFAULT_DUE_MESSAGE),
                     ): str,
+                    **_sound_schema_fields("due", cfg),
                 }
             ),
         )
@@ -730,6 +777,7 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_OVERDUE_MESSAGE: user_input.get(
                     CONF_NOTIF_OVERDUE_MESSAGE, DEFAULT_OVERDUE_MESSAGE
                 ),
+                **_sound_config_from_input("overdue", user_input),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -746,6 +794,7 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_OVERDUE_MESSAGE,
                         default=cfg.get(CONF_NOTIF_OVERDUE_MESSAGE, DEFAULT_OVERDUE_MESSAGE),
                     ): str,
+                    **_sound_schema_fields("overdue", cfg),
                 }
             ),
         )
@@ -769,6 +818,7 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_DUE_SOON_MESSAGE: user_input.get(
                     CONF_NOTIF_DUE_SOON_MESSAGE, DEFAULT_DUE_SOON_MESSAGE
                 ),
+                **_sound_config_from_input("due_soon", user_input),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -785,6 +835,7 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_DUE_SOON_MESSAGE,
                         default=cfg.get(CONF_NOTIF_DUE_SOON_MESSAGE, DEFAULT_DUE_SOON_MESSAGE),
                     ): str,
+                    **_sound_schema_fields("due_soon", cfg),
                 }
             ),
         )
@@ -808,6 +859,7 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_TAKEN_MESSAGE: user_input.get(
                     CONF_NOTIF_TAKEN_MESSAGE, DEFAULT_TAKEN_MESSAGE
                 ),
+                **_sound_config_from_input("taken", user_input),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -824,6 +876,7 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_TAKEN_MESSAGE,
                         default=cfg.get(CONF_NOTIF_TAKEN_MESSAGE, DEFAULT_TAKEN_MESSAGE),
                     ): str,
+                    **_sound_schema_fields("taken", cfg),
                 }
             ),
         )
@@ -847,6 +900,7 @@ class MedicationOptionsFlow(OptionsFlow):
                 CONF_NOTIF_LOW_STOCK_MESSAGE: user_input.get(
                     CONF_NOTIF_LOW_STOCK_MESSAGE, DEFAULT_LOW_STOCK_MESSAGE
                 ),
+                **_sound_config_from_input("low_stock", user_input),
             }
             await coordinator.async_update_notification_config(updated)
             return await self.async_step_notifications()
@@ -863,6 +917,7 @@ class MedicationOptionsFlow(OptionsFlow):
                         CONF_NOTIF_LOW_STOCK_MESSAGE,
                         default=cfg.get(CONF_NOTIF_LOW_STOCK_MESSAGE, DEFAULT_LOW_STOCK_MESSAGE),
                     ): str,
+                    **_sound_schema_fields("low_stock", cfg),
                 }
             ),
         )

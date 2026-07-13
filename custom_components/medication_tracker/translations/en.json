@@ -62,42 +62,62 @@
       },
       "notification_due_message": {
         "title": "Due now message template",
-        "description": "Customise the message sent when a dose is due.",
+        "description": "Customise the message sent when a dose is due.\n\n**Notification Sounds** — iOS and Android control sound differently, so each has its own options below. ⚠️ iOS Critical bypasses mute and Do Not Disturb, but only works once you've granted the Home Assistant app \"Critical Alerts\" permission in iOS Settings → Notifications → Home Assistant. Android Critical routes to a dedicated \"Critical Medication\" channel — Android locks a channel's sound/importance the first time it's created, so adjust it afterward in your phone's own notification settings if needed.",
         "data": {
           "due_title": "Notification title",
-          "due_message": "Notification message"
+          "due_message": "Notification message",
+          "due_ios_sound_mode": "iOS — Sound behavior",
+          "due_ios_sound_name": "iOS — Time-sensitive sound name (used only when set to Time-sensitive above)",
+          "due_android_sound_mode": "Android — Sound behavior",
+          "due_android_importance": "Android — Channel importance (used only when set to Critical above)"
         }
       },
       "notification_overdue_message": {
         "title": "Overdue message template",
-        "description": "Customise the message sent when a dose is overdue.",
+        "description": "Customise the message sent when a dose is overdue.\n\n**Notification Sounds** — iOS and Android control sound differently, so each has its own options below. ⚠️ iOS Critical bypasses mute and Do Not Disturb, but only works once you've granted the Home Assistant app \"Critical Alerts\" permission in iOS Settings → Notifications → Home Assistant. Android Critical routes to a dedicated \"Critical Medication\" channel — Android locks a channel's sound/importance the first time it's created, so adjust it afterward in your phone's own notification settings if needed.",
         "data": {
           "overdue_title": "Notification title",
-          "overdue_message": "Notification message"
+          "overdue_message": "Notification message",
+          "overdue_ios_sound_mode": "iOS — Sound behavior",
+          "overdue_ios_sound_name": "iOS — Time-sensitive sound name (used only when set to Time-sensitive above)",
+          "overdue_android_sound_mode": "Android — Sound behavior",
+          "overdue_android_importance": "Android — Channel importance (used only when set to Critical above)"
         }
       },
       "notification_due_soon_message": {
         "title": "Due soon message template",
-        "description": "Customise the message sent when a dose is due soon.",
+        "description": "Customise the message sent when a dose is due soon.\n\n**Notification Sounds** — iOS and Android control sound differently, so each has its own options below. ⚠️ iOS Critical bypasses mute and Do Not Disturb, but only works once you've granted the Home Assistant app \"Critical Alerts\" permission in iOS Settings → Notifications → Home Assistant. Android Critical routes to a dedicated \"Critical Medication\" channel — Android locks a channel's sound/importance the first time it's created, so adjust it afterward in your phone's own notification settings if needed.",
         "data": {
           "due_soon_title": "Notification title",
-          "due_soon_message": "Notification message"
+          "due_soon_message": "Notification message",
+          "due_soon_ios_sound_mode": "iOS — Sound behavior",
+          "due_soon_ios_sound_name": "iOS — Time-sensitive sound name (used only when set to Time-sensitive above)",
+          "due_soon_android_sound_mode": "Android — Sound behavior",
+          "due_soon_android_importance": "Android — Channel importance (used only when set to Critical above)"
         }
       },
       "notification_taken_message": {
         "title": "Taken confirmation message template",
-        "description": "Customise the message sent when a dose is marked as taken.",
+        "description": "Customise the message sent when a dose is marked as taken.\n\n**Notification Sounds** — iOS and Android control sound differently, so each has its own options below. ⚠️ iOS Critical bypasses mute and Do Not Disturb, but only works once you've granted the Home Assistant app \"Critical Alerts\" permission in iOS Settings → Notifications → Home Assistant. Android Critical routes to a dedicated \"Critical Medication\" channel — Android locks a channel's sound/importance the first time it's created, so adjust it afterward in your phone's own notification settings if needed.",
         "data": {
           "taken_title": "Notification title",
-          "taken_message": "Notification message"
+          "taken_message": "Notification message",
+          "taken_ios_sound_mode": "iOS — Sound behavior",
+          "taken_ios_sound_name": "iOS — Time-sensitive sound name (used only when set to Time-sensitive above)",
+          "taken_android_sound_mode": "Android — Sound behavior",
+          "taken_android_importance": "Android — Channel importance (used only when set to Critical above)"
         }
       },
       "notification_low_stock_message": {
         "title": "Low stock message template",
-        "description": "Customise the message sent when a medication's stock runs low. You can use {stock} to show the remaining quantity.",
+        "description": "Customise the message sent when a medication's stock runs low. You can use {stock} to show the remaining quantity.\n\n**Notification Sounds** — iOS and Android control sound differently, so each has its own options below. ⚠️ iOS Critical bypasses mute and Do Not Disturb, but only works once you've granted the Home Assistant app \"Critical Alerts\" permission in iOS Settings → Notifications → Home Assistant. Android Critical routes to a dedicated \"Critical Medication\" channel — Android locks a channel's sound/importance the first time it's created, so adjust it afterward in your phone's own notification settings if needed.",
         "data": {
           "low_stock_title": "Notification title",
-          "low_stock_message": "Notification message"
+          "low_stock_message": "Notification message",
+          "low_stock_ios_sound_mode": "iOS — Sound behavior",
+          "low_stock_ios_sound_name": "iOS — Time-sensitive sound name (used only when set to Time-sensitive above)",
+          "low_stock_android_sound_mode": "Android — Sound behavior",
+          "low_stock_android_importance": "Android — Channel importance (used only when set to Critical above)"
         }
       },
       "notification_per_medication": {
