@@ -35,6 +35,7 @@ from .const import (
     CONF_NOTIF_LOW_STOCK_MESSAGE,
     CONF_NOTIF_LOW_STOCK_TITLE,
     CONF_NOTIF_OVERDUE_ENABLED,
+    CONF_NOTIF_OVERDUE_GRACE_MINUTES,
     CONF_NOTIF_OVERDUE_MAX_REPEATS,
     CONF_NOTIF_OVERDUE_MESSAGE,
     CONF_NOTIF_OVERDUE_REPEAT_MINUTES,
@@ -66,6 +67,7 @@ from .const import (
     DEFAULT_LOW_STOCK_MESSAGE,
     DEFAULT_LOW_STOCK_TITLE,
     DEFAULT_NOTIFY_TARGET,
+    DEFAULT_OVERDUE_GRACE_MINUTES,
     DEFAULT_OVERDUE_MAX_REPEATS,
     DEFAULT_OVERDUE_MESSAGE,
     DEFAULT_OVERDUE_REPEAT_MINUTES,
@@ -700,6 +702,17 @@ class MedicationOptionsFlow(OptionsFlow):
                         default=cfg.get(CONF_NOTIF_OVERDUE_ENABLED, False),
                     ): bool,
                     vol.Optional(
+                        CONF_NOTIF_OVERDUE_GRACE_MINUTES,
+                        default=cfg.get(
+                            CONF_NOTIF_OVERDUE_GRACE_MINUTES, DEFAULT_OVERDUE_GRACE_MINUTES
+                        ),
+                    ): vol.All(
+                        NumberSelector(
+                            NumberSelectorConfig(min=0, max=1440, step=1, mode=NumberSelectorMode.BOX)
+                        ),
+                        vol.Coerce(int),
+                    ),
+                    vol.Optional(
                         CONF_NOTIF_OVERDUE_REPEAT_MINUTES,
                         default=cfg.get(
                             CONF_NOTIF_OVERDUE_REPEAT_MINUTES, DEFAULT_OVERDUE_REPEAT_MINUTES
@@ -1073,6 +1086,10 @@ def _notification_config_from_input(
         ),
         CONF_NOTIF_OVERDUE_ENABLED: user_input.get(
             CONF_NOTIF_OVERDUE_ENABLED, existing.get(CONF_NOTIF_OVERDUE_ENABLED, False)
+        ),
+        CONF_NOTIF_OVERDUE_GRACE_MINUTES: user_input.get(
+            CONF_NOTIF_OVERDUE_GRACE_MINUTES,
+            existing.get(CONF_NOTIF_OVERDUE_GRACE_MINUTES, DEFAULT_OVERDUE_GRACE_MINUTES),
         ),
         CONF_NOTIF_OVERDUE_REPEAT_MINUTES: user_input.get(
             CONF_NOTIF_OVERDUE_REPEAT_MINUTES,

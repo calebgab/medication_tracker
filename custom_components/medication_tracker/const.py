@@ -59,8 +59,6 @@ CONF_STOCK_LOW_THRESHOLD = "stock_low_threshold"
 DEFAULT_STOCK_PER_DOSE = 1.0
 DEFAULT_STOCK_LOW_THRESHOLD = 5.0
 
-# How many minutes past a scheduled time before it's considered overdue
-OVERDUE_GRACE_MINUTES = 30
 # How many minutes before a scheduled time to show "due soon"
 DUE_SOON_MINUTES = 60
 
@@ -103,6 +101,7 @@ CONF_NOTIF_TARGET = "notify_target"
 # key so anyone who already had "Alert when overdue" on keeps working
 # unchanged after upgrading, just with repeat behavior instead of one-shot.
 CONF_NOTIF_OVERDUE_ENABLED = "overdue_enabled"
+CONF_NOTIF_OVERDUE_GRACE_MINUTES = "overdue_grace_minutes"
 CONF_NOTIF_OVERDUE_REPEAT_MINUTES = "overdue_repeat_minutes"
 CONF_NOTIF_OVERDUE_MAX_REPEATS = "overdue_max_repeats"
 CONF_NOTIF_OVERDUE_TITLE = "overdue_title"
@@ -242,6 +241,7 @@ CONF_NOTIF_OVERRIDE_LOW_STOCK = "override_low_stock"
 
 # Default notify target
 DEFAULT_NOTIFY_TARGET = "notify.persistent_notification"
+DEFAULT_OVERDUE_GRACE_MINUTES = 30
 DEFAULT_OVERDUE_REPEAT_MINUTES = 30
 DEFAULT_OVERDUE_MAX_REPEATS = 5
 
