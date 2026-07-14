@@ -2,7 +2,12 @@
 
 [![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/default)
 [![GitHub release](https://img.shields.io/github/release/calebgab/medication_tracker.svg)](https://github.com/calebgab/medication_tracker/releases)
+[![Downloads (latest release)](https://img.shields.io/github/downloads/calebgab/medication_tracker/latest/total.svg)](https://github.com/calebgab/medication_tracker/releases/latest)
+[![Downloads (all releases)](https://img.shields.io/github/downloads/calebgab/medication_tracker/total.svg)](https://github.com/calebgab/medication_tracker/releases)
 [![CI](https://github.com/calebgab/medication_tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/calebgab/medication_tracker/actions/workflows/ci.yml)
+[![Validate](https://github.com/calebgab/medication_tracker/actions/workflows/validate.yml/badge.svg)](https://github.com/calebgab/medication_tracker/actions/workflows/validate.yml)
+[![Validate Custom](https://github.com/calebgab/medication_tracker/actions/workflows/validate-custom.yml/badge.svg)](https://github.com/calebgab/medication_tracker/actions/workflows/validate-custom.yml)
+[![Validate with hassfest](https://github.com/calebgab/medication_tracker/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/calebgab/medication_tracker/actions/workflows/hassfest.yaml)
 
 Track medications, scheduled doses, streaks, and overdue alerts — entirely local, no cloud, no app required.
 
