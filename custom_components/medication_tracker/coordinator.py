@@ -16,6 +16,7 @@ import homeassistant.util.dt as dt_util
 
 from .const import (
     CONF_CURRENT_STOCK,
+    CONF_NOTIF_OVERDUE_GRACE_MINUTES,
     CONF_NOTIFICATIONS,
     CONF_STOCK_LOW_THRESHOLD,
     CONF_STOCK_PER_DOSE,
@@ -23,13 +24,13 @@ from .const import (
     DEFAULT_AS_NEEDED_MAX_PER_24H,
     DEFAULT_AS_NEEDED_MAX_PER_DAY,
     DEFAULT_AS_NEEDED_MIN_HOURS,
+    DEFAULT_OVERDUE_GRACE_MINUTES,
     DEFAULT_STOCK_LOW_THRESHOLD,
     DEFAULT_STOCK_PER_DOSE,
     DOMAIN,
     DUE_SOON_MINUTES,
     MED_TYPE_AS_NEEDED,
     MED_TYPE_SCHEDULED,
-    OVERDUE_GRACE_MINUTES,
     STORAGE_KEY,
     STORAGE_VERSION,
 )
@@ -427,6 +428,9 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         overdue_since: str | None = None
         is_due_now = False
         due_at_time: str | None = None
+        overdue_grace_minutes = self._notification_config.get(
+            CONF_NOTIF_OVERDUE_GRACE_MINUTES, DEFAULT_OVERDUE_GRACE_MINUTES
+        )
         if scheduled_today:
             for t_str in sorted(scheduled_times):
                 try:
@@ -434,7 +438,7 @@ class MedicationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 except ValueError:
                     continue
                 scheduled_dt = datetime.combine(today, t, tzinfo=now.tzinfo)
-                grace_dt = scheduled_dt + timedelta(minutes=OVERDUE_GRACE_MINUTES)
+                grace_dt = scheduled_dt + timedelta(minutes=overdue_grace_minutes)
                 if now > grace_dt:
                     handled = any(e.get("scheduled_time") == t_str for e in today_entries)
                     if not handled:

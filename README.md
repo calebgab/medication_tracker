@@ -111,8 +111,9 @@ Click **Configure** on the integration card, then choose **Notifications** to se
 |---------|-------------|
 | Notify service | The HA notify service to use (e.g. `notify.mobile_app_your_phone`) — select from the dropdown of detected devices |
 | Alert when due | Send a notification once, right at the scheduled time |
-| Repeat reminder every N minutes until taken or skipped | Once a dose goes overdue (30 minutes past due by default), keep re-notifying every N minutes until you mark it taken or skipped |
-| Repeat every (minutes) | How often the overdue reminder repeats (default 30) |
+| Repeat reminder every N minutes until taken or skipped | Once a dose goes overdue, keep re-notifying every N minutes until you mark it taken or skipped |
+| Consider overdue after (minutes) | How long past the scheduled time before a dose is treated as overdue (default 30) — this is a single global setting shared by all medications, so time-sensitive meds can use a short grace period without affecting others |
+| Repeat every (minutes) | How often the overdue reminder repeats once overdue (default 30) |
 | Stop repeating after this many reminders | Caps how many times it repeats before giving up (default 5) — the overdue state itself doesn't clear, it just stops notifying |
 | Alert when due soon | Send a notification once, when a dose is due within 60 minutes |
 | Taken confirmation | Send a notification when a dose is marked as taken |
@@ -344,7 +345,7 @@ tap_action:
 
 ## Overdue Grace Period
 
-A scheduled dose is not considered overdue until **30 minutes** after its scheduled time, to account for slight delays. The due-soon window is **60 minutes** before a scheduled dose.
+A scheduled dose is not considered overdue until the **Consider overdue after (minutes)** setting has elapsed past its scheduled time (default 30, configurable in **Configure → Notifications**) — lower it for medications that need to be taken right on time. The due-soon window is **60 minutes** before a scheduled dose.
 
 ---
 
