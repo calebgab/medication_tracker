@@ -101,7 +101,8 @@ CONF_NOTIF_TARGET = "notify_target"
 # key so anyone who already had "Alert when overdue" on keeps working
 # unchanged after upgrading, just with repeat behavior instead of one-shot.
 CONF_NOTIF_OVERDUE_ENABLED = "overdue_enabled"
-CONF_NOTIF_OVERDUE_GRACE_MINUTES = "overdue_grace_minutes"
+# Also doubles as the initial overdue grace period — a dose becomes overdue
+# this many minutes after its scheduled time, then repeats on the same cadence.
 CONF_NOTIF_OVERDUE_REPEAT_MINUTES = "overdue_repeat_minutes"
 CONF_NOTIF_OVERDUE_MAX_REPEATS = "overdue_max_repeats"
 CONF_NOTIF_OVERDUE_TITLE = "overdue_title"
@@ -241,7 +242,6 @@ CONF_NOTIF_OVERRIDE_LOW_STOCK = "override_low_stock"
 
 # Default notify target
 DEFAULT_NOTIFY_TARGET = "notify.persistent_notification"
-DEFAULT_OVERDUE_GRACE_MINUTES = 30
 DEFAULT_OVERDUE_REPEAT_MINUTES = 30
 DEFAULT_OVERDUE_MAX_REPEATS = 5
 
