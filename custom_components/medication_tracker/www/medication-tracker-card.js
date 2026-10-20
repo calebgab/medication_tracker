@@ -332,12 +332,16 @@ class MedicationTrackerCard extends HTMLElement {
   }
 }
 
-customElements.define("medication-tracker-card", MedicationTrackerCard);
+// The file may be loaded twice, e.g. by the integration and by a resource
+// that was added manually in an earlier version. Registering again would throw.
+if (!customElements.get("medication-tracker-card")) {
+  customElements.define("medication-tracker-card", MedicationTrackerCard);
 
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "medication-tracker-card",
-  name: "Medication Tracker",
-  description: "Shows all medications with status and mark taken / skip buttons.",
-  preview: false,
-});
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: "medication-tracker-card",
+    name: "Medication Tracker",
+    description: "Shows all medications with status and mark taken / skip buttons.",
+    preview: false,
+  });
+}

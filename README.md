@@ -24,7 +24,7 @@ Track medications, scheduled doses, streaks, and overdue alerts — entirely loc
 - **Per-medication notification overrides** — enable or disable individual alert types per medication, overriding the global settings
 - **Services** to mark doses taken or skipped, reset today's log, and adjust stock (e.g. after a refill)
 - **Full UI configuration** — add, edit, and remove medications via the Home Assistant UI (no YAML required)
-- **Optional Lovelace card** — a custom dashboard card showing all medications with status and action buttons
+- **Lovelace card** — a custom dashboard card showing all medications with status and action buttons, registered automatically
 - **Persistent storage** — survives restarts; today's log is pruned automatically at midnight
 
 ---
@@ -268,25 +268,19 @@ Add to or subtract from a medication's current stock level — handy for automat
 
 ---
 
-## Optional: Lovelace Dashboard Card
+## Lovelace Dashboard Card
 
-A custom card is available that shows all your medications in one place, including status, next dose time, last taken, streak, doses taken today, and Mark taken / Skip dose buttons. Medications with stock tracking enabled also show the current stock level and a **Top up stock** button.
+A custom card is included that shows all your medications in one place, including status, next dose time, last taken, streak, doses taken today, and Mark taken / Skip dose buttons. Medications with stock tracking enabled also show the current stock level and a **Top up stock** button.
 
 ![Medication Tracker Lovelace Card](docs/lovelace-card.png)
 
-> **Note:** This card is optional and requires a manual step, and unlike the integration itself it is **not** kept up to date by HACS — HACS only manages `custom_components/medication_tracker/`. Whenever this file changes, you need to re-copy it yourself (see below).
+The card is registered automatically when Home Assistant starts with the integration installed — there is nothing to copy and no dashboard resource to add. It is served from the integration itself, so it is updated together with the integration through HACS.
 
-### Installation
+After installing or updating the integration, restart Home Assistant and reload your browser tab (`Ctrl+Shift+R` / `Cmd+Shift+R`) once so the frontend picks up the new file.
 
-1. Copy `medication-tracker-card.js` from the root of this repository into your Home Assistant `www` folder (i.e. `config/www/medication-tracker-card.js`) — via the File editor/Studio Code Server add-on, Samba, or `curl -o config/www/medication-tracker-card.js https://raw.githubusercontent.com/calebgab/medication_tracker/main/medication-tracker-card.js` from the Terminal add-on
-2. Go to **Settings → Dashboards → Resources**
-3. Click **Add resource**
-4. Set URL to `/local/medication-tracker-card.js` and type to **JavaScript module**
-5. Click **Create** then reload the page
+### Upgrading from the manual installation
 
-### Updating the card
-
-Because HACS doesn't manage this file, updating the integration via HACS does **not** update the card. After an update that touches `medication-tracker-card.js` (check the [releases](https://github.com/calebgab/medication_tracker/releases) or recent commits), repeat step 1 above to overwrite your local copy, then hard-refresh your browser (`Ctrl+Shift+R` / `Cmd+Shift+R`) — the frontend caches this file aggressively, so a HA restart alone often isn't enough.
+Earlier versions required copying `medication-tracker-card.js` to `config/www` and adding it under **Settings → Dashboards → Resources**. That is no longer necessary. You can remove the `/local/medication-tracker-card.js` resource and delete the copied file; leaving them in place is harmless but means the frontend loads the card twice.
 
 ### Adding the card to a dashboard
 
@@ -373,7 +367,7 @@ This should not happen — medications are persisted in HA's `.storage` director
 Check that you have selected a notify target in **Configure → Notifications** and that the relevant toggles (overdue, due soon) are enabled. The notify service name must exactly match a service listed in Developer Tools → Services under `notify.`.
 
 **The Lovelace card isn't appearing in the card picker**
-Make sure the resource was added correctly (**Settings → Dashboards → Resources**) and that you did a full page reload after adding it.
+Restart Home Assistant after installing or updating the integration and do a full page reload (`Ctrl+Shift+R` / `Cmd+Shift+R`). If it still doesn't show up, check that the file is reachable at `/api/medication_tracker/medication-tracker-card.js` in your browser.
 
 ---
 

@@ -10,7 +10,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.typing import ConfigType
 
+from .card import async_register_card
 from .const import (
     ATTR_AMOUNT,
     ATTR_MEDICATION_ID,
@@ -29,6 +31,8 @@ from .notify import MedicationNotifier
 _LOGGER = logging.getLogger(__name__)
 
 type MedicationTrackerConfigEntry = ConfigEntry[MedicationCoordinator]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # ---------------------------------------------------------------------------
 # Service schemas
@@ -64,6 +68,12 @@ _ADJUST_STOCK_SCHEMA = _SERVICE_BASE_SCHEMA.extend(
 # ---------------------------------------------------------------------------
 # Setup / teardown
 # ---------------------------------------------------------------------------
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the Lovelace card once per Home Assistant start."""
+    await async_register_card(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: MedicationTrackerConfigEntry) -> bool:

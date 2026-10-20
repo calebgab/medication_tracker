@@ -6,7 +6,10 @@
     "@calebgab"
   ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [
+    "frontend",
+    "http"
+  ],
   "documentation": "https://github.com/calebgab/medication_tracker",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/calebgab/medication_tracker/issues",
